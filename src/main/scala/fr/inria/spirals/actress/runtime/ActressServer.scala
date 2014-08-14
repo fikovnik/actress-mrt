@@ -1,26 +1,30 @@
 package fr.inria.spirals.actress.runtime
 
-import akka.actor.ActorSystem
+import scala.reflect.ClassTag
+import scala.reflect.classTag
+
+import actress.sys.ModelsEndpoints
+import actress.sys.ModelsEndpointsBinding
 import akka.actor.Actor
-import fr.inria.spirals.actress.util.Reflection._
+import akka.actor.ActorLogging
+import akka.actor.ActorRef
+import akka.actor.ActorSystem
+import akka.actor.Props
 import fr.inria.spirals.actress.metamodel.Attribute
 import fr.inria.spirals.actress.metamodel.Reference
 import fr.inria.spirals.actress.runtime.protocol._
-import akka.event.Logging
-import akka.actor.Props
-import actress.sys.OSInfoBinding
-import actress.sys.OSBinding
-import scala.reflect.ClassTag
-import scala.reflect.classTag
-import scala.collection.mutable.Buffer
-import akka.actor.ActorRef
+import fr.inria.spirals.actress.util.Reflection._
 
 trait Binding[T] {
-  this: T ⇒
+  // TODO: it should be used to guide the implementation of the binding
+  // will see how we can do that later
+  // this: T ⇒
 }
 
-abstract class ActressServerActor[T](bindingFactory: (String) ⇒ Binding[T]) extends Actor {
-  lazy val log = Logging(context.system, this)
+trait BindingFactory[T] extends (Option[String] => Binding[T])
+
+
+class ModelActor[T: ClassTag](bindingFactory: BindingFactory[T]) extends Actor with ActorLogging {
 
   // in the future, there could be different binding scopes (similarly to JEE beans)
   // currently all scopes are request based, but there could be
@@ -30,12 +34,9 @@ abstract class ActressServerActor[T](bindingFactory: (String) ⇒ Binding[T]) ex
   // - a session scope (a scope shared by all requests from a given client and responded by the same actor)
   //   this will have to get coupled with a new routing policy having one actor per client
 
-  def binding(id: String) = bindingFactory(id)
-
-}
-
-class ModelActor[T: ClassTag](bindingFactory: (String) ⇒ Binding[T]) extends ActressServerActor(bindingFactory) {
-
+  // TODO: handle error
+  def binding(elementId: Option[String]) = bindingFactory(elementId)
+    
   val features = classTag[T]
     .runtimeClass
     .declaredMethods
@@ -44,52 +45,40 @@ class ModelActor[T: ClassTag](bindingFactory: (String) ⇒ Binding[T]) extends A
     .toMap
 
   override def receive = {
-    case msg @ GetAttribute(id, name) ⇒
-      log debug s"Received $msg"
-      doGet(id, name)
-    case GetAttributes => sender ! Attributes(features.keys)
+    case msg @ Get(name, elementId) ⇒
+      log debug s"Get $msg for $elementId"
+      doGet(name, elementId)
   }
 
-  def doGet(id: String, name: String) {
-    val bnd = binding(id)
+  def doGet(name: String, elementId: Option[String]) {
+    val bnd = binding(elementId)
 
     features get name match {
       case Some(method) ⇒
         val value = method.invoke(bnd)
-        sender ! AttributeValue(id, name, value)
+        sender ! AttributeValue(name, value, elementId)
       case None ⇒
         log warning s"$name: unknown attribute"
-        sender ! UnknownAttribute(id, name)
+        sender ! UnknownAttribute(name, elementId)
     }
   }
 
 }
 
-class ServiceLocator extends Actor {
-
-  lazy val log = Logging(context.system, this)
-  val services = Buffer[(String, ActorRef)]()
-
-  def receive = {
-    case Register(name, ref) ⇒
-      log info s"Registering a new model: $name with ref: $ref"
-      context.watch(ref)
-      services += name -> ref
-    case GetCapabilities() ⇒
-      sender ! Capabilities(services.toSeq)
-  }
-}
-
 class ActressServer {
 
   val sys = ActorSystem("actress-server")
-  val serviceLocator = sys.actorOf(Props[ServiceLocator], "service-locator")
+  
+  val modelsEndpoints = registerModel[ModelsEndpoints]("models-endpoints", new BindingFactory[ModelsEndpoints] {
+    // application scope binding
+    // see the comments in ModelsEndpointsBinding
+    val binding = new ModelsEndpointsBinding
+    def apply(elementId: Option[String]) = binding
+  }) 
 
-  def registerModel[T: ClassTag](name: String, bindingFactory: (String) ⇒ Binding[T]) {
-    //	  val ref = sys.actorOf(Props(classOf[NodeActor[T]], bindingFactory), name)
+  def registerModel[T: ClassTag](name: String, bindingFactory: BindingFactory[T]): ActorRef = {
     val ref = sys.actorOf(Props(new ModelActor[T](bindingFactory)), name)
-
-    serviceLocator ! Register(name, ref)
+    ref
   }
 
 }

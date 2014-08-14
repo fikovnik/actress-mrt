@@ -2,8 +2,6 @@ package actress.sys
 
 import java.nio.file.Path
 import java.nio.file.{Files => JFiles}
-import fr.inria.spirals.actress.metamodel.Monitor
-import fr.inria.spirals.actress.metamodel.Channel
 import java.nio.file.attribute.PosixFileAttributeView
 import java.util.EnumSet
 import java.nio.file.FileVisitOption
@@ -22,7 +20,7 @@ class FileBinding(id: String) {
   
   def uid = posixFile.readAttributes().owner.hashCode
   def uid_=(v: Int) = ??? 
-  def monitorUid(ch: Channel) = ???
+//  def monitorUid(ch: Channel) = ???
   
   def creationTime = posixFile.readAttributes().creationTime
   def creationTime_=(v: Long) = ???

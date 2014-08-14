@@ -9,14 +9,8 @@ import akka.actor.ActorSystem
 import akka.actor.actorRef2Scala
 import akka.testkit.ImplicitSender
 import akka.testkit.TestKit
-import fr.inria.spirals.actress.runtime.protocol.Capabilities
-import fr.inria.spirals.actress.runtime.protocol.GetCapabilities
-import akka.actor.ActorRef
-import fr.inria.spirals.actress.runtime.protocol.GetAttribute
-import akka.testkit.TestActorRef
-import fr.inria.spirals.actress.runtime.protocol.GetAttributes
-import fr.inria.spirals.actress.runtime.protocol.Attributes
-import fr.inria.spirals.actress.runtime.protocol.Attributes
+import fr.inria.spirals.actress.runtime.protocol.Get
+import fr.inria.spirals.actress.runtime.protocol.AttributeValue
 
 class ActressServerSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with Matchers with BeforeAndAfterAll {
 
@@ -26,53 +20,40 @@ class ActressServerSpec(_system: ActorSystem) extends TestKit(_system) with Impl
     TestKit.shutdownActorSystem(system)
   }
 
-  "ServiceLocator" when {
-    "no services have been registered" should {
-      "report no services" in {
-        val server = new ActressServer
-        server.serviceLocator ! GetCapabilities()
-        expectMsg(Capabilities(Seq()))
-      }
-    }
+//  "NodeActor" should {
+//    "get attributes" in {
+//      val bf = { _: String ⇒ new OSInfoBinding }
+//      val na = TestActorRef(new ModelActor(bf))
+//      na ! GetAttributes
+//      val r = expectMsgType[Attributes]
+//      r.attributes should contain only("name")
+//    }
+//    
+//    "get an attribute value" in {
+//        val bf = { _: String ⇒ new OSInfoBinding }
+//        val server = new ActressServer
+//
+//        server.registerModel[OSInfo]("os", bf)
+//
+//        server.modelLocator ! GetModels()
+//        receiveOne(remaining) match {
+//          case Models(Seq(ModelEndpoint("os", ref: ActorRef))) =>
+//            ref ! GetAttribute("", "name")
+//            println(receiveOne(remaining))
+//        }
+//      
+//    }
+//  }
 
-    "a service is registered" should {
-      "report its endpoint" in {
-        val bf = { _: String ⇒ new OSInfoBinding }
-        val server = new ActressServer
-
-        server.registerModel[OSInfo]("os", bf)
-
-        server.serviceLocator ! GetCapabilities()
-        val msg = receiveOne(remaining)
-        println(msg)
-        //      expectMsg(Capabilities(_))
-      }
+  "ActressServer" should {
+    "bootstrap model-endpoint server" in {
+      val server = new ActressServer
+      
+      server.modelsEndpoints should not be(null)
+      server.modelsEndpoints ! Get("endpoints")
+      val r = expectMsgType[AttributeValue]
+      println(r)
     }
   }
   
-  "NodeActor" should {
-    "get attributes" in {
-      val bf = { _: String ⇒ new OSInfoBinding }
-      val na = TestActorRef(new ModelActor(bf))
-      na ! GetAttributes
-      val r = expectMsgType[Attributes]
-      r.attributes should contain only("name")
-    }
-    
-    "get an attribute value" in {
-        val bf = { _: String ⇒ new OSInfoBinding }
-        val server = new ActressServer
-
-        server.registerModel[OSInfo]("os", bf)
-
-        server.serviceLocator ! GetCapabilities()
-        receiveOne(remaining) match {
-          case Capabilities(Seq(("os", ref: ActorRef))) =>
-            ref ! GetAttribute("", "name")
-            println(receiveOne(remaining))
-        }
-      
-    }
-  }
-
 }
