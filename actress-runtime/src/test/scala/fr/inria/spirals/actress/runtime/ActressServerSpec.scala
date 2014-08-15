@@ -1,5 +1,6 @@
 package fr.inria.spirals.actress.runtime
 
+import fr.inria.spirals.actress.runtime.protocol.{References, AttributeValue, Get}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.Matchers
 import org.scalatest.WordSpecLike
@@ -15,6 +16,9 @@ class ActressServerSpec(_system: ActorSystem) extends TestKit(_system) with Impl
   override def afterAll {
     TestKit.shutdownActorSystem(system)
   }
+
+
+
 
 //  "NodeActor" should {
 //    "get attributes" in {
@@ -41,15 +45,15 @@ class ActressServerSpec(_system: ActorSystem) extends TestKit(_system) with Impl
 //    }
 //  }
 
-//  "ActressServer" should {
-//    "bootstrap model-endpoint server" in {
-//      val server = new ActressServer
-//      
-//      server.modelsEndpoints should not be(null)
-//      server.modelsEndpoints ! Get("endpoints")
-//      val r = expectMsgType[AttributeValue]
-//      println(r)
-//    }
-//  }
+  "ActressServer" should {
+    "bootstrap model-endpoint server" in {
+      val server = new ActressServer
+
+      server.modelsEndpoints should not be(null)
+      server.modelsEndpoints ! Get("endpoints")
+      val r = expectMsgType[References]
+      println(r)
+    }
+  }
   
 }
