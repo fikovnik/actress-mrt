@@ -1,10 +1,9 @@
 package actress.sys
 
-import fr.inria.spirals.actress.metamodel.{MRTClass, MRTFeature, Observable}
+import fr.inria.spirals.actress.metamodel.{MRTClass, Observable}
 
 trait User extends MRTClass {
 
-  @MRTFeature
   def name: Observable[String]
 
   def name_=(v: String): Unit
@@ -13,7 +12,6 @@ trait User extends MRTClass {
 
 trait Users extends MRTClass {
 
-  @MRTFeature
   def users: Observable[Set[User]]
 
 }

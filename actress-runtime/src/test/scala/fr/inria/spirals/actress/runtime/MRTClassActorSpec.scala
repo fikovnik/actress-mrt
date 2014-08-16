@@ -1,7 +1,6 @@
 package fr.inria.spirals.actress.runtime
 
-import fr.inria.spirals.actress.metamodel.{MRTClass, MRTFeature, Observable}
-import fr.inria.spirals.actress.runtime.MRTClassActor.Feature
+import fr.inria.spirals.actress.metamodel.{MRTFeature, MRTClass, Observable}
 import fr.inria.spirals.actress.util.Reflection._
 import org.scalatest.{Matchers, WordSpec}
 
@@ -13,42 +12,35 @@ class MRTClassActorSpec extends WordSpec with Matchers {
       trait R extends MRTClass
 
       trait C extends MRTClass {
-        @MRTFeature
         def attribute1: String
 
-        @MRTFeature
         def attribute2: Observable[String]
 
         def attribute2_=(v: String)
 
-        @MRTFeature
         def attribute3: Observable[Set[String]]
 
-        @MRTFeature
         def attribute4: Observable[collection.mutable.Set[String]]
 
-        @MRTFeature
         def reference1: R
 
-        @MRTFeature
         def reference2: Observable[R]
 
         def reference2_=(v: R)
 
-        @MRTFeature
         def reference3: Observable[Set[R]]
       }
 
       val features = MRTClassActor.inspectFeatures[C]
 
-      features should contain(Feature("attribute1", classOf[String]))
-      features should contain(Feature("attribute2", classOf[String], observable = true, mutable = true))
-      features should contain(Feature("attribute3", classOf[String], observable = true, container = true, unique = true))
-      features should contain(Feature("attribute4", classOf[String], observable = true, container = true, unique = true, mutable = true))
+      features should contain(MRTFeature("attribute1", classOf[String]))
+      features should contain(MRTFeature("attribute2", classOf[String], observable = true, mutable = true))
+      features should contain(MRTFeature("attribute3", classOf[String], observable = true, container = true, unique = true))
+      features should contain(MRTFeature("attribute4", classOf[String], observable = true, container = true, unique = true, mutable = true))
 
-      features should contain(Feature("reference1", classOf[R], reference = true))
-      features should contain(Feature("reference2", classOf[R], reference = true, observable = true, mutable = true))
-      features should contain(Feature("reference3", classOf[R], reference = true, observable = true, container = true, unique = true))
+      features should contain(MRTFeature("reference1", classOf[R], reference = true))
+      features should contain(MRTFeature("reference2", classOf[R], reference = true, observable = true, mutable = true))
+      features should contain(MRTFeature("reference3", classOf[R], reference = true, observable = true, container = true, unique = true))
 
       features should have size 7
 
@@ -64,9 +56,9 @@ class MRTClassActorSpec extends WordSpec with Matchers {
 
       }
 
-      MRTClassActor.findGet(Feature("attribute1", classOf[String]), classOf[B]) should be('defined)
-      MRTClassActor.findGet(Feature("attribute2", classOf[String], observable = true), classOf[B]) should be('defined)
-      MRTClassActor.findGet(Feature("attribute3", classOf[String], observable = true, container = true, ordered = false, unique = true), classOf[B]) should be('defined)
+      MRTClassActor.findGet(MRTFeature("attribute1", classOf[String]), classOf[B]) should be('defined)
+      MRTClassActor.findGet(MRTFeature("attribute2", classOf[String], observable = true), classOf[B]) should be('defined)
+      MRTClassActor.findGet(MRTFeature("attribute3", classOf[String], observable = true, container = true, ordered = false, unique = true), classOf[B]) should be('defined)
 
       // TODO: the rest of the cases
     }
@@ -78,8 +70,8 @@ class MRTClassActorSpec extends WordSpec with Matchers {
         def attribute1_=(v: String)
       }
 
-      MRTClassActor.findSet(Feature("attribute1", classOf[String], mutable = true), classOf[B]) should be('defined)
-      MRTClassActor.findSet(Feature("attribute1", classOf[String], mutable = true), classOf[B]).get.name should be("attribute1_$eq")
+      MRTClassActor.findSet(MRTFeature("attribute1", classOf[String], mutable = true), classOf[B]) should be('defined)
+      MRTClassActor.findSet(MRTFeature("attribute1", classOf[String], mutable = true), classOf[B]).get.name should be("attribute1_$eq")
 
       // TODO: the rest of the cases
     }
@@ -90,18 +82,14 @@ class MRTClassActorSpec extends WordSpec with Matchers {
       trait R extends MRTClass
 
       trait C extends MRTClass {
-        @MRTFeature
         def attribute1: String
 
-        @MRTFeature
         def attribute2: Observable[String]
 
         def attribute2_=(v: String)
 
-        @MRTFeature
         def attribute3: Observable[Set[String]]
 
-        @MRTFeature
         def attribute4: Observable[collection.mutable.Set[String]]
       }
 

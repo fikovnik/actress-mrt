@@ -1,17 +1,15 @@
 package actress.sys
 
-import fr.inria.spirals.actress.metamodel.{MRTClass, MRTFeature}
+import fr.inria.spirals.actress.metamodel.{MRTClass}
 
 trait OSInfo extends MRTClass {
 
-  @MRTFeature
   def name: String
 
 }
 
 trait OS extends MRTClass {
 
-  @MRTFeature
   def os: OSInfo
 
 }

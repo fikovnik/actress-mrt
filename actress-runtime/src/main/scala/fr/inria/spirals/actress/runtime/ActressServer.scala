@@ -6,7 +6,7 @@ import java.util.concurrent.ConcurrentHashMap
 import actress.core.{ModelEndpoint, ModelsEndpoints}
 import actress.core.binding.{ModelEndpointBinding, ModelsEndpointsBinding}
 import akka.actor._
-import fr.inria.spirals.actress.metamodel.{MRTClass, MRTFeature, Observable}
+import fr.inria.spirals.actress.metamodel.{MRTFeature, MRTClass, Observable}
 import fr.inria.spirals.actress.runtime.protocol.{AttributeValue, GetReply, Reference, References}
 import fr.inria.spirals.actress.util.Reflection._
 
@@ -14,17 +14,6 @@ import scala.collection.JavaConversions._
 import scala.reflect.{ClassTag, classTag}
 
 object MRTClassActor {
-
-
-  case class Feature(name: String,
-                     rawType: Class[_],
-                     reference: Boolean = false,
-                     required: Boolean = false,
-                     observable: Boolean = false,
-                     mutable: Boolean = false,
-                     container: Boolean = false,
-                     unique: Boolean = false,
-                     ordered: Boolean = false)
 
   trait FeatureAccessor {
     def get: Method
@@ -36,26 +25,26 @@ object MRTClassActor {
 
   case class MutableCollectionFeatureAccessor(get: Method, add: Method, del: Method) extends FeatureAccessor
 
-  def findAdd(feature: Feature, clazz: Class[_]): Option[Method] = clazz.declaredMethods find { m =>
+  def findAdd(feature: MRTFeature, clazz: Class[_]): Option[Method] = clazz.declaredMethods find { m =>
     m.returnType == classOf[Unit] &&
       m.name == feature.name + "_add"
     // TODO: check arguments
   }
 
-  def findDel(feature: Feature, clazz: Class[_]): Option[Method] = clazz.declaredMethods find { m =>
+  def findDel(feature: MRTFeature, clazz: Class[_]): Option[Method] = clazz.declaredMethods find { m =>
     m.returnType == classOf[Unit] &&
       m.name == feature.name + "_del"
     // TODO: check arguments
   }
 
-  def findSet(feature: Feature, clazz: Class[_]): Option[Method] = clazz.declaredMethods find { m =>
+  def findSet(feature: MRTFeature, clazz: Class[_]): Option[Method] = clazz.declaredMethods find { m =>
     m.returnType == classOf[Unit] &&
       (m.name == feature.name + "_$eq" || m.name == "set" + feature.name.capitalize) &&
       m.parameterTypes.size == 1
     // TODO: check arguments
   }
 
-  def findGet(feature: Feature, clazz: Class[_]): Option[Method] = clazz.declaredMethods find { m =>
+  def findGet(feature: MRTFeature, clazz: Class[_]): Option[Method] = clazz.declaredMethods find { m =>
     m.name == feature.name && {
       if (feature.container) {
         m.parameterTypes.size == 0
@@ -67,7 +56,7 @@ object MRTClassActor {
     }
   }
 
-  def loadFeatures[T <: MRTClass : ClassTag, U <: Binding[T] : ClassTag]: Map[String, (Feature, FeatureAccessor)] = {
+  def loadFeatures[T <: MRTClass : ClassTag, U <: Binding[T] : ClassTag]: Map[String, (MRTFeature, FeatureAccessor)] = {
     val bndClazz = classTag[U].runtimeClass
 
     inspectFeatures[T]
@@ -89,11 +78,12 @@ object MRTClassActor {
       .toMap
   }
 
-  def inspectFeatures[T <: MRTClass : ClassTag]: Seq[Feature] = {
+  def inspectFeatures[T <: MRTClass : ClassTag]: Seq[MRTFeature] = {
 
     object ReferenceType {
       def unapply(clazz: Class[_]): Option[Boolean] =
-        if (classOf[MRTClass] <:< clazz) Some(true) else Some(false)
+        if (classOf[MRTClass] <:< clazz) Some(true)
+        else Some(false)
     }
 
     object CollectionType {
@@ -107,10 +97,10 @@ object MRTClassActor {
 
     val mrtClazz = classTag[T].runtimeClass
 
-    val candidates = mrtClazz.declaredMethods filter (_.hasAnnotation[MRTFeature])
+    val candidates = mrtClazz.declaredMethods
 
     // do not confuse with the findSet which searches the binding class
-    def hasSetter(feature: Feature) = mrtClazz.declaredMethods exists { m =>
+    def hasSetter(feature: MRTFeature) = mrtClazz.declaredMethods exists { m =>
       m.returnType == classOf[Unit] &&
         (m.name == feature.name + "_$eq" || m.name == "set" + feature.name.capitalize) &&
         m.parameterTypes.size == 1
@@ -120,17 +110,17 @@ object MRTClassActor {
     for (m <- candidates) yield m.resolveGenericReturnType match {
       // 1..1 feature
       case Seq(rawType@ReferenceType(reference)) =>
-        val f = Feature(m.name, rawType, reference = reference)
+        val f = MRTFeature(m.name, rawType, reference = reference)
         f copy (mutable = hasSetter(f))
 
       // 1..1 observable feature
       case Seq(`Observable[]`, rawType@ReferenceType(reference)) =>
-        val f = Feature(m.name, rawType, reference = reference, container = false, observable = true)
+        val f = MRTFeature(m.name, rawType, reference = reference, container = false, observable = true)
         f copy (mutable = hasSetter(f))
 
       // 0..* features
       case Seq(`Observable[]`, CollectionType(mutable, ordered, unique), rawType@ReferenceType(reference)) =>
-        Feature(m.name, rawType, reference = reference, mutable = mutable, container = true, observable = true, ordered = ordered, unique = unique)
+        MRTFeature(m.name, rawType, reference = reference, mutable = mutable, container = true, observable = true, ordered = ordered, unique = unique)
 
       case _ =>
         throw new IllegalArgumentException(s"$m.name: unsupported return type")
@@ -174,7 +164,7 @@ class MRTClassActor[T <: MRTClass : ClassTag, U <: Binding[T] : ClassTag](endpoi
 
   def endpointFor(clazz: Class[_]) = endpoints(clazz.name)
 
-  def doGet(feature: Feature, accessor: FeatureAccessor, binding: U): GetReply = {
+  def doGet(feature: MRTFeature, accessor: FeatureAccessor, binding: U): GetReply = {
     // TODO: handle failure
     val res = accessor.get.invoke(binding)
 
