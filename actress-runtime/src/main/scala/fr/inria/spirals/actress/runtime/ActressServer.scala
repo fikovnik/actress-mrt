@@ -3,10 +3,10 @@ package fr.inria.spirals.actress.runtime
 import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
 
-import actress.core.{ModelEndpoint, ModelsEndpoints}
 import actress.core.binding.{ModelEndpointBinding, ModelsEndpointsBinding}
+import actress.core.{ModelEndpoint, ModelsEndpoints}
 import akka.actor._
-import fr.inria.spirals.actress.metamodel.{MRTFeature, MRTClass, Observable}
+import fr.inria.spirals.actress.metamodel.{MRTClass, MRTFeature}
 import fr.inria.spirals.actress.runtime.protocol.{AttributeValue, GetReply, Reference, References}
 import fr.inria.spirals.actress.util.Reflection._
 
@@ -93,8 +93,6 @@ object MRTClassActor {
         else None
     }
 
-    val `Observable[]` = classOf[Observable[_]]
-
     val mrtClazz = classTag[T].runtimeClass
 
     val candidates = mrtClazz.declaredMethods
@@ -113,14 +111,14 @@ object MRTClassActor {
         val f = MRTFeature(m.name, rawType, reference = reference)
         f copy (mutable = hasSetter(f))
 
-      // 1..1 observable feature
-      case Seq(`Observable[]`, rawType@ReferenceType(reference)) =>
-        val f = MRTFeature(m.name, rawType, reference = reference, container = false, observable = true)
-        f copy (mutable = hasSetter(f))
+//      // 1..1 observable feature
+//      case Seq(`Observable[]`, rawType@ReferenceType(reference)) =>
+//        val f = MRTFeature(m.name, rawType, reference = reference, container = false, observable = true)
+//        f copy (mutable = hasSetter(f))
 
       // 0..* features
-      case Seq(`Observable[]`, CollectionType(mutable, ordered, unique), rawType@ReferenceType(reference)) =>
-        MRTFeature(m.name, rawType, reference = reference, mutable = mutable, container = true, observable = true, ordered = ordered, unique = unique)
+      case Seq(CollectionType(mutable, ordered, unique), rawType@ReferenceType(reference)) =>
+        MRTFeature(m.name, rawType, reference = reference, mutable = mutable, container = true, ordered = ordered, unique = unique)
 
       case _ =>
         throw new IllegalArgumentException(s"$m.name: unsupported return type")

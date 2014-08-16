@@ -1,7 +1,7 @@
 package actress.core
 
 import akka.actor.ActorRef
-import fr.inria.spirals.actress.metamodel.{MRTClass, Observable}
+import fr.inria.spirals.actress.metamodel.MRTClass
 
 trait ModelEndpoint extends MRTClass {
 
@@ -12,6 +12,6 @@ trait ModelEndpoint extends MRTClass {
 
 trait ModelsEndpoints extends MRTClass {
 
-  def endpoints: Observable[Set[ModelEndpoint]]
+  def endpoints: Set[ModelEndpoint]
 
 }
