@@ -15,6 +15,18 @@ trait Reflection {
     def name: String = that.getName
     def simpleName: String = that.getSimpleName
     def declaredMethods: Seq[Method] = that.getDeclaredMethods
+    def superClass: Class[_] = that.getSuperclass
+    def interfaces: Seq[Class[_]] = that.getInterfaces
+    def allSuperClasses: Seq[Class[_]] = {
+      def inspect(clazz: Class[_], agg: Seq[Class[_]] = Seq()): Seq[Class[_]] = {
+        if (clazz == null || clazz == classOf[Object]) agg
+        else {
+          (inspect(clazz.superClass) ++ clazz.interfaces flatMap (inspect(_))) :+ clazz
+        }
+      }
+
+      inspect(that).distinct.dropRight(1)
+    }
     def <:<(clazz: Class[_]): Boolean = that isAssignableFrom clazz
   }
 

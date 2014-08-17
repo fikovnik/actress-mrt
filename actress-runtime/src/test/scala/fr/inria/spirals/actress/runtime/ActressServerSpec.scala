@@ -55,6 +55,9 @@ class ActressServerSpec(_system: ActorSystem) extends TestKit(_system) with Impl
 //      server.modelsEndpoints ! Get("endpoints")
 //      val r = expectMsgType[References]
 //      println(r)
+
+//      server.modelsEndpoints ! Get("_class")
+
     }
   }
   

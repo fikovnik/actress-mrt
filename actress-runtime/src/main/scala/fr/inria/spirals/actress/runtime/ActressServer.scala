@@ -98,7 +98,6 @@ class PackageModelActor(pkg: APackage) extends Actor with ActorLogging {
 
 class ModelActor(model: AClass) extends Actor with ActorLogging {
 
-  import fr.inria.spirals.actress.runtime.MRTClassActor._
   import context._
 
   override def preStart(): Unit = {
@@ -166,12 +165,13 @@ class ActressServer {
 
   val modelsEndpoints = {
 
-    object ModelsEndpointsPackage extends APackage.AbstractPackageImpl("modelsendpoints") {
+    object ModelsEndpointsPackage extends APackageImpl {
 
       val ModelsEndpoints = APackage.registry.aClass[ModelsEndpoints]
       val ModelEndpoint = APackage.registry.aClass[ModelEndpoint]
 
-      def _classifiers: Seq[AClassifier] = Seq(
+      _name = "modelsendpoints"
+      _classifiers ++= Seq(
         ModelsEndpoints,
         ModelEndpoint
       )
@@ -198,7 +198,17 @@ class ActressServer {
       }
     }
 
-    registerPackage(ModelsEndpointsPackage, bindingMapper)
+    val ref = registerPackage(ModelsEndpointsPackage, bindingMapper)
+
+    // create a new instance of a model endpoint
+    // add it to modelsenspoints
+    // -> ref ! Create(reference)
+    // <- Reference
+    // ref ! Set()
+    // ref ! Add(elementId, reference, instance)
+
+
+    ref
   }
 
   //  def registerBinding[T <: AClass](clazz: T, factory: BindingFactory[T]): Unit = {

@@ -1,22 +1,47 @@
 package fr.inria.spirals.actress.metamodel
 
+import java.lang.reflect.Method
+
+import akka.actor.ActorRef
 import fr.inria.spirals.actress.util.Reflection._
 
+import scala.collection.mutable
 import scala.reflect.{ClassTag, classTag}
+
 
 trait AObject {
 
   def _class: AClass
 
+  def _container: AObject
+
+  def _container_=(v: AObject)
+
+  def _actor: ActorRef
+
+  def _actor_=(v: ActorRef)
+
 }
 
-trait AModelElement extends AObject {
+sealed trait AModelElement extends AObject {
 
   def _name: String
 
+  def _name_=(v: String)
+
 }
 
-trait AClassifier extends AModelElement
+trait APackage extends AModelElement {
+
+  @Containment
+  def _classifiers: mutable.Buffer[AClassifier]
+
+  @Derived
+  def _classes: mutable.Buffer[AClass] = _classifiers collect { case c: AClass => c}
+
+}
+
+sealed trait AClassifier extends AModelElement
 
 trait ADataType extends AClassifier
 
@@ -24,39 +49,172 @@ trait AClass extends AClassifier {
 
   def _abstract: Boolean
 
+  def _abstract_=(v: Boolean)
+
+  def _superTypes: mutable.Buffer[AClass]
+
   @Containment
-  def _features: Seq[AFeature]
+  def _features: mutable.Buffer[AFeature]
 
   @Derived
-  def _references: Seq[AReference] = _features collect { case r: AReference => r}
-
-  def _superTypes: Seq[AClass]
+  def _references: mutable.Buffer[AReference] = _features collect { case r: AReference => r}
 
 }
 
-trait AFeature extends AModelElement {
+sealed trait AFeature extends AModelElement {
 
-  def _type: AClassifier
+  type T <: AClassifier
+
+  def _type: T
+
+  def _type_=(v: T)
 
   def _mutable: Boolean
 
+  def _mutable_=(v: Boolean)
+
   def _many: Boolean
 
+  def _many_=(v: Boolean)
+
   def _derived: Boolean
+
+  def _derived_=(v: Boolean)
+
+}
+
+trait AAttribute extends AFeature {
+
+  type T = ADataType
 
 }
 
 trait AReference extends AFeature {
 
+  type T = AClass
+
   def _containment: Boolean
 
-  override def _type: AClass
+  def _containment_=(v: Boolean)
 
 }
 
-trait AAttribute extends AFeature
 
 object APackage {
+
+  private implicit class AObjectInit[T <: AObject](that: T) {
+    def init(fun: T => Any): T = {
+      fun(that)
+      that
+    }
+  }
+
+
+  def initAClassifierFrom[T <: AClassifier](classifier: T, clazz: Class[_]): T = {
+    def initADataTypeFrom(dataType: ADataType, clazz: Class[_]): Unit = {
+      
+    }
+
+    def initAClassFrom(aclass: AClass, clazz: Class[_]) {
+      // TODO: handle abstraction - need annotation for that
+
+      // superclasses
+      val superClasses = clazz.allSuperClasses
+      assert(
+        superClasses forall { c => IsReferenceType.unapply(c)},
+        s"All super classes of the given class $classifier should be AObjects. At least one is not $superClasses"
+      )
+      aclass._superTypes ++= superClasses map (registry.aClass(_))
+
+      // features
+      aclass._features ++= featuresFrom(clazz)
+    }
+
+    classifier._name = clazz.simpleName
+
+    classifier match {
+      case dt: ADataType => initADataTypeFrom(dt, clazz)
+      case ac: AClass => initAClassFrom(ac, clazz)
+    }
+
+    classifier
+  }
+
+  def featureFrom(m: Method): AFeature = {
+    // TODO: 0..1 reference
+    // TODO: 0..1 attribute
+    // TODO: assert m is a feature
+
+    val setter = m.declaringClass.declaredMethods.find { that =>
+      that.name == m.name + "_$eq" &&
+        that.parameterTypes.size == 1 &&
+        that.parameterTypes(0) == m.returnType &&
+        that.returnType == classOf[Unit]
+    }
+
+    // TODO: update extractors
+    val feature = m.resolveGenericReturnType match {
+      // 1..1 reference
+      case Seq(rawType@IsReferenceType()) =>
+        new AReferenceImpl() init { r =>
+          r._type = registry.aClass(rawType)
+        }
+
+      // 1..1 attribute
+      case Seq(rawType) =>
+        new AAttributeImpl() init { r =>
+          r._type = registry.aDataType(rawType)
+        }
+
+      // 0..* reference
+      case Seq(CollectionType(mutable, ordered, unique), rawType@IsReferenceType()) =>
+        new AReferenceImpl() init { r =>
+          r._type = registry.aClass(rawType)
+          r._many = true
+          r._containment = m.hasAnnotation[Containment]
+        }
+
+      // 0..* attributes
+      case Seq(CollectionType(mutable, ordered, unique), rawType) =>
+        new AAttributeImpl() init { r =>
+          r._type = registry.aDataType(rawType)
+          r._many = true
+        }
+
+      case _ =>
+        throw new IllegalArgumentException(s"$m.name: unsupported return type")
+    }
+
+    feature._name = m.name
+    feature._mutable = setter.isDefined
+    feature
+  }
+
+  def featuresFrom(clazz: Class[_]): Seq[AFeature] =
+    clazz.declaredMethods
+      .filter(_.parameterTypes.size == 0)
+      .map(featureFrom)
+
+  protected object IsReferenceType {
+    def unapply(clazz: Class[_]): Boolean =
+      if (classOf[AObject] <:< clazz) true
+      else false
+  }
+
+  protected object CollectionType {
+    /**
+     * (mutable, ordered, unique)
+     */
+    def unapply(clazz: Class[_]): Option[(Boolean, Boolean, Boolean)] =
+    // TODO: immutable ordered and unique - ListSet
+    // TODO: mutable ordered and unique - ???
+      if (classOf[Set[_]] <:< clazz) Some((false, false, true))
+      else if (classOf[mutable.Set[_]] <:< clazz) Some((true, false, true))
+      else if (classOf[Seq[_]] <:< clazz) Some((false, true, false))
+      else if (classOf[mutable.Buffer[_]] <:< clazz) Some((true, true, false))
+      else None
+  }
+
 
   object registry {
 
@@ -66,187 +224,112 @@ object APackage {
     dataTypes ++= ActressPackage._classifiers collect { case a: ADataType => a._name -> a}
     classes ++= ActressPackage._classifiers collect { case a: AClass => a._name -> a}
 
-    protected object IsReferenceType {
-      def unapply(clazz: Class[_]): Boolean =
-        if (classOf[AClass] <:< clazz) true
-        else false
-    }
+    def aDataType(clazz: Class[_]): ADataType = dataTypes getOrElseUpdate(clazz.name, clazz match {
+      case IsReferenceType() => throw new IllegalArgumentException(s"$clazz: is an attribute compatible datatype")
+      case _ => initAClassifierFrom(new ADataTypeImpl(), clazz)
+    })
 
-    protected object CollectionType {
-      def unapply(clazz: Class[_]): Option[(Boolean, Boolean, Boolean)] =
-        if (classOf[Set[_]] <:< clazz) Some((false, false, true))
-        else if (classOf[collection.mutable.Set[_]] <:< clazz) Some((true, false, true))
-        else None
-    }
 
-    def aDataType(clazz: Class[_]): ADataType = {
-      val name = clazz.name
-      dataTypes getOrElseUpdate(name, clazz match {
-        case IsReferenceType() => throw new IllegalArgumentException(s"$clazz: is an AClass")
-        case _ => ADataTypeImpl(name)
-      })
-    }
+    def aClass(clazz: Class[_]): AClass = classes getOrElse(clazz.name, {
+      val aclass = new AClassImpl()
+      classes += (clazz.name -> aclass)
 
-    // FIXME: this is broken as it will lookup the same class multiple times
-    // class A extends AClass {
-    //   def ref: A
-    // }
-    
-    def aClass(clazz: Class[_ <: AClass]): AClass = classes getOrElseUpdate(clazz.name, loadAClass(clazz))
+      initAClassifierFrom(aclass, clazz)
+    })
 
     def aClass[T <: AClass : ClassTag]: AClass = aClass(classTag[T].runtimeClass.asInstanceOf[Class[AClass]])
 
-    protected def loadAClass(clazz: Class[_ <: AClass]): AClassImpl = {
-      // TODO: handle abstraction
-      // TODO: handle super classes
-      val candidates = clazz.declaredMethods
-
-
-      // TODO: 0..1 reference
-      // TODO: 0..1 attribute
-      // TODO: mutable
-      val features =
-        for (m <- candidates) yield m.resolveGenericReturnType match {
-          // 1..1 reference
-          case Seq(rawType@IsReferenceType()) =>
-            val _type = aClass(rawType.asInstanceOf[Class[AClass]])
-            APackage.AReferenceImpl(m.name, _type)
-          //        f copy (mutable = hasSetter(f))
-
-          // 1..1 attribute
-          case Seq(rawType) =>
-            val _type = aDataType(rawType)
-            APackage.AAttributeImpl(m.name, _type)
-          //        f copy (mutable = hasSetter(f))
-
-          // 0..* reference
-          case Seq(CollectionType(mutable, ordered, unique), rawType@IsReferenceType()) =>
-            val _type = aClass(rawType.asInstanceOf[Class[AClass]])
-            APackage.AReferenceImpl(m.name, _type, _many = true, _containment = m.hasAnnotation[Containment])
-
-          // 0..* attributes
-          case Seq(CollectionType(mutable, ordered, unique), rawType) =>
-            val _type = aDataType(rawType)
-            APackage.AAttributeImpl(m.name, _type, _many = true)
-
-          case _ =>
-            throw new IllegalArgumentException(s"$m.name: unsupported return type")
-        }
-
-      // FIXME: it should be .simpleName once we start using packages
-      APackage.AClassImpl(clazz.name, _features = features)
-    }
-
-  }
-
-  case class ADataTypeImpl(_name: String) extends ADataType {
-    lazy val _class = ActressPackage.ADataTypeClass
-  }
-
-  case class AAttributeImpl(_name: String, _type: ADataType, _mutable: Boolean = false, _many: Boolean = false, _derived: Boolean = false) extends AAttribute {
-    lazy val _class = ActressPackage.AAttributeClass
-  }
-
-  case class AReferenceImpl(_name: String, _type: AClass, _mutable: Boolean = false, _many: Boolean = false, _derived: Boolean = false, _containment: Boolean = false) extends AReference {
-    require(!_derived || !_containment, s"${_name}: derived feature cannot be contained")
-
-    lazy val _class = ActressPackage.AReferenceClass
-  }
-
-  case class AClassImpl(_name: String, _abstract: Boolean = false, _superTypes: Seq[AClass] = Seq(), _features: Seq[AFeature] = Seq()) extends AClass {
-    lazy val _class = ActressPackage.AClassClass
-  }
-
-  abstract class AbstractPackageImpl(val _name: String) extends APackage {
-    lazy val _class = ActressPackage.APackageClass
   }
 
 }
 
-trait APackage extends AModelElement {
+// TODO: toString
 
-  @Containment
-  def _classifiers: Seq[AClassifier]
-
-  @Derived
-  def _classes: Seq[AClass] = _classifiers collect { case c: AClass => c}
-
+class AObjectImpl extends AObject {
+  lazy val _class: AClass = ActressPackage.AObjectClass
+  var _container: AObject = _
+  var _actor: ActorRef = _
 }
 
-object ActressPackage extends APackage {
+abstract class AModelElementImpl extends AObjectImpl with AModelElement {
+  override lazy val _class: AClass = ActressPackage.AModelElementClass
+  var _name: String = _
+}
 
-  import fr.inria.spirals.actress.metamodel.APackage._
+class APackageImpl extends AModelElementImpl with APackage {
+  override lazy val _class: AClass = ActressPackage.APackageClass
+  val _classifiers: mutable.Buffer[AClassifier] = mutable.Buffer()
+}
 
-  lazy val AString = ADataTypeImpl("string")
-  lazy val ABoolean = ADataTypeImpl("boolean")
+abstract class AClassifierImpl extends AModelElementImpl with AClassifier {
+  override lazy val _class: AClass = ActressPackage.AClassifierClass
+}
 
-  lazy val AModelElementClass: AClass = AClassImpl("AModelElement",
-    _abstract = true,
-    _features = Seq(
-      AAttributeImpl("_name", AString)
-    ))
+class ADataTypeImpl extends AClassifierImpl with ADataType {
+  override lazy val _class: AClass = ActressPackage.ADataTypeClass
+}
 
-  lazy val APackageClass: AClass = AClassImpl("APackage",
-    _superTypes = Seq(AModelElementClass),
-    _features = Seq(
-      AReferenceImpl("_classifiers", AReferenceClass, _many = true, _containment = true),
-      AReferenceImpl("_classifiers", AReferenceClass, _many = true, _derived = true)
-    ))
+class AClassImpl extends AClassifierImpl with AClass {
+  override lazy val _class: AClass = ActressPackage.AClassClass
+  var _abstract: Boolean = false
+  val _superTypes: mutable.Buffer[AClass] = mutable.Buffer()
+  val _features: mutable.Buffer[AFeature] = mutable.Buffer()
+}
 
-  lazy val AClassifierClass: AClass = AClassImpl("AClassifier",
-    _abstract = true,
-    _superTypes = Seq(AModelElementClass))
+abstract class AFeatureImpl extends AModelElementImpl with AFeature {
+  override lazy val _class: AClass = ActressPackage.AFeatureClass
+  var _mutable: Boolean = false
+  var _many: Boolean = false
+  var _derived: Boolean = false
+}
 
-  lazy val AClassClass: AClass = new AClassImpl("AClass", _superTypes = Seq(AClassifierClass)) {
-    override val _features = Seq(
-      AAttributeImpl("_abstract", ABoolean),
-      AReferenceImpl("_superTypes", this, _many = true),
-      AReferenceImpl("_features", AFeatureClass, _many = true, _containment = true),
-      AReferenceImpl("_references", AFeatureClass, _many = true, _derived = true)
-    )
+class AAttributeImpl extends AFeatureImpl with AAttribute {
+  override lazy val _class: AClass = ActressPackage.AAttributeClass
+  var _type: ADataType = _
+}
 
-    // We cannot print the full _features as this will be recursive!
-    override val toString = s"AClass(${_name},${_abstract},${_superTypes},${_features map (_._name)}})"
-  }
+class AReferenceImpl extends AFeatureImpl with AReference {
+  override lazy val _class: AClass = ActressPackage.AReferenceClass
+  var _type: AClass = _
+  var _containment: Boolean = false
+}
 
-  lazy val ADataTypeClass: AClass = AClassImpl("ADataType",
-    _superTypes = Seq(AClassifierClass))
+object ActressPackage extends APackageImpl {
 
-  lazy val AFeatureClass: AClass = AClassImpl("AFeature",
-    _superTypes = Seq(AModelElementClass),
-    _features = Seq(
-      AReferenceImpl("_type", AClassifierClass),
-      AAttributeImpl("_mutable", ABoolean),
-      AAttributeImpl("_many", ABoolean),
-      AAttributeImpl("_derived", ABoolean)
-    ))
+  val AString = new ADataTypeImpl()
+  val ABoolean = new ADataTypeImpl()
 
-  lazy val AAttributeClass: AClass = AClassImpl("AAttribute",
-    _superTypes = Seq(AFeatureClass))
+  val AObjectClass = new AClassImpl()
+  val AModelElementClass = new AClassImpl()
+  val APackageClass = new AClassImpl()
+  val AClassifierClass = new AClassImpl()
+  val AClassClass = new AClassImpl()
+  val ADataTypeClass = new AClassImpl()
+  val AFeatureClass = new AClassImpl()
+  val AAttributeClass = new AClassImpl()
+  val AReferenceClass = new AClassImpl()
 
-  lazy val AReferenceClass: AClass = AClassImpl("AAttribute",
-    _superTypes = Seq(AFeatureClass),
-    _features = Seq(
-      AAttributeImpl("_containment", ABoolean)))
+  private val content = Seq(
+    AString -> classOf[String],
+    ABoolean -> classOf[Boolean],
 
-  val _classifiers = Seq(
-    AString,
-    ABoolean,
-    AModelElementClass,
-    APackageClass,
-    AClassifierClass,
-    AClassClass,
-    ADataTypeClass,
-    AFeatureClass,
-    AAttributeClass,
-    AReferenceClass
+    AObjectClass -> classOf[AObject],
+    AModelElementClass -> classOf[AModelElement],
+    APackageClass -> classOf[APackage],
+    AClassifierClass -> classOf[AClassifier],
+    ADataTypeClass -> classOf[ADataType],
+    AClassClass -> classOf[AClass],
+    AFeatureClass -> classOf[AFeature],
+    AAttributeClass -> classOf[AAttribute],
+    AReferenceClass -> classOf[AReference]
   )
 
-  val _name = "actress"
+  _name = "acore"
+  _classifiers ++= content map (_._1)
 
-  lazy val _class = APackageClass
+  content foreach { c => APackage.initAClassifierFrom(c._1, c._2)}
 
-  override def toString = s"APackage(${_name},${_class},${_classifiers})"
+  override def toString = s"APackageImpl(${_name},${_class},${_classifiers})"
 }
 
 trait APackageRegistry extends AClass {
