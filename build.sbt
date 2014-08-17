@@ -20,6 +20,7 @@ lazy val `actress-runtime` = project
   .settings(commonSettings: _*)
   .settings(
     libraryDependencies += "com.typesafe.akka" %% "akka-actor" % akkaVersion,
+    libraryDependencies += "com.typesafe.akka" %% "akka-agent" % akkaVersion,
     libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion
   )
 

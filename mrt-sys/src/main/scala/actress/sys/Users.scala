@@ -1,8 +1,8 @@
 package actress.sys
 
-import fr.inria.spirals.actress.metamodel.MRTClass
+import fr.inria.spirals.actress.metamodel.AClass
 
-trait User extends MRTClass {
+trait User extends AClass {
 
   def name: String
 
@@ -10,7 +10,7 @@ trait User extends MRTClass {
 
 }
 
-trait Users extends MRTClass {
+trait Users extends AClass {
 
   def users: Set[User]
 

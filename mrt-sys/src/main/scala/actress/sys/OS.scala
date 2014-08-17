@@ -1,14 +1,14 @@
 package actress.sys
 
-import fr.inria.spirals.actress.metamodel.{MRTClass}
+import fr.inria.spirals.actress.metamodel.AClass
 
-trait OSInfo extends MRTClass {
+trait OSInfo extends AClass {
 
   def name: String
 
 }
 
-trait OS extends MRTClass {
+trait OS extends AClass {
 
   def os: OSInfo
 

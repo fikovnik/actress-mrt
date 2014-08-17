@@ -1,8 +1,8 @@
 package actress.sys
 
-import fr.inria.spirals.actress.metamodel.MRTClass
+import fr.inria.spirals.actress.metamodel.AClass
 
-trait File extends MRTClass {
+trait File extends AClass {
 
   def uid: Int
   def uid_=(v: Int): Unit
@@ -13,7 +13,7 @@ trait File extends MRTClass {
   def files: Iterable[File]
 }
 
-trait Files extends MRTClass {
+trait Files extends AClass {
 
   def files: File
 

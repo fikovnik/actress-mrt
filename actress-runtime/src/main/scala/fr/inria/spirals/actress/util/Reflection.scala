@@ -13,6 +13,7 @@ trait Reflection {
 
   implicit class RichClass(that: Class[_]) {
     def name: String = that.getName
+    def simpleName: String = that.getSimpleName
     def declaredMethods: Seq[Method] = that.getDeclaredMethods
     def <:<(clazz: Class[_]): Boolean = that isAssignableFrom clazz
   }

@@ -6,7 +6,7 @@ import java.nio.file.{FileSystems, Files => JFiles}
 import actress.sys.{Files, File}
 import fr.inria.spirals.actress.runtime.Binding
 
-class FileBinding(id: String) extends Binding[File] {
+class FileBinding(id: String) extends Binding {
 
   assert(id != null)
 
@@ -34,7 +34,7 @@ class FileBinding(id: String) extends Binding[File] {
   }
 }
 
-class FilesBinding extends Binding[Files] {
+class FilesBinding extends Binding {
 
   def files: String = "/"
 

@@ -2,16 +2,13 @@ package actress.core.binding
 
 import actress.core.{ModelEndpoint, ModelsEndpoints}
 import akka.actor.ActorRef
+import akka.agent.Agent
 import fr.inria.spirals.actress.runtime.Binding
 
-case class ModelEndpointBinding(val name: String, val endpoint: ActorRef) extends Binding[ModelEndpoint]
+case class ModelEndpointBinding(name: String, endpoint: ActorRef) extends Binding
 
-// TODO: mark that this is an application scope binding and that it has to be thread safe
-// TODO: actually, it could be that an application scope binding cannot be used with routers!!!
-class ModelsEndpointsBinding(_endpoints: collection.Set[String]) extends Binding[ModelsEndpoints] {
+class ModelsEndpointsBinding(_endpoints: Agent[Map[String, ActorRef]]) extends Binding {
 
-  def endpoints: Set[String] = _endpoints.toSet
-
-  // TODO: monitor
+  def endpoints: Set[String] = _endpoints().keySet
 
 }
