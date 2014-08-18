@@ -10,6 +10,7 @@ import scala.reflect.{ClassTag, classTag}
 
 
 trait AObject {
+  def _get(feature: AFeature): Any
 
   def _class: AClass
 
@@ -37,11 +38,19 @@ trait APackage extends AModelElement {
   def _classifiers: mutable.Buffer[AClassifier]
 
   @Derived
-  def _classes: mutable.Buffer[AClass] = _classifiers collect { case c: AClass => c}
+  def _classes: Seq[AClass] = _classifiers collect { case c: AClass => c}
 
+  @Derived
+  def _dataTypes: Seq[ADataType] = _classifiers collect { case c: ADataType => c}
 }
 
-sealed trait AClassifier extends AModelElement
+sealed trait AClassifier extends AModelElement {
+
+  def _instanceClass: Class[_]
+
+  def _instanceClass_=(clazz: Class[_])
+
+}
 
 trait ADataType extends AClassifier
 
@@ -57,7 +66,7 @@ trait AClass extends AClassifier {
   def _features: mutable.Buffer[AFeature]
 
   @Derived
-  def _references: mutable.Buffer[AReference] = _features collect { case r: AReference => r}
+  def _references: Seq[AReference] = _features collect { case r: AReference => r}
 
 }
 
@@ -99,6 +108,12 @@ trait AReference extends AFeature {
 
 }
 
+trait APackageRegistry extends AObject {
+
+  @Containment
+  def packages: collection.mutable.Seq[APackage]
+
+}
 
 object APackage {
 
@@ -112,7 +127,7 @@ object APackage {
 
   def initAClassifierFrom[T <: AClassifier](classifier: T, clazz: Class[_]): T = {
     def initADataTypeFrom(dataType: ADataType, clazz: Class[_]): Unit = {
-      
+
     }
 
     def initAClassFrom(aclass: AClass, clazz: Class[_]) {
@@ -131,6 +146,7 @@ object APackage {
     }
 
     classifier._name = clazz.simpleName
+    classifier._instanceClass = clazz
 
     classifier match {
       case dt: ADataType => initADataTypeFrom(dt, clazz)
@@ -216,26 +232,31 @@ object APackage {
   }
 
 
-  object registry {
+  object registry extends AObjectImpl with APackageRegistry {
 
-    private val dataTypes = collection.mutable.Map[String, ADataType]()
-    private val classes = collection.mutable.Map[String, AClass]()
+    override lazy val _class: AClass = AcorePackage.APackageRegistryClass
 
-    dataTypes ++= ActressPackage._classifiers collect { case a: ADataType => a._name -> a}
-    classes ++= ActressPackage._classifiers collect { case a: AClass => a._name -> a}
+    var packages = mutable.Buffer[APackage]()
 
-    def aDataType(clazz: Class[_]): ADataType = dataTypes getOrElseUpdate(clazz.name, clazz match {
-      case IsReferenceType() => throw new IllegalArgumentException(s"$clazz: is an attribute compatible datatype")
-      case _ => initAClassifierFrom(new ADataTypeImpl(), clazz)
-    })
+    def allClassifiers = packages flatMap (_._classifiers)
 
+    def allDataTypes = packages flatMap (_._dataTypes)
 
-    def aClass(clazz: Class[_]): AClass = classes getOrElse(clazz.name, {
-      val aclass = new AClassImpl()
-      classes += (clazz.name -> aclass)
+    def allClasses = packages flatMap (_._classes)
 
-      initAClassifierFrom(aclass, clazz)
-    })
+    def classifierForInstanceClass(clazz: Class[_]): Option[AClassifier] = allClassifiers find (_._instanceClass == clazz)
+
+    def aDataType(clazz: Class[_]): ADataType = classifierForInstanceClass(clazz) match {
+      case Some(dt: ADataType) => dt
+      case Some(_) => throw new IllegalArgumentException(s"$clazz: is not an ADataType, but an AClass")
+      case None => throw new IllegalArgumentException(s"$clazz: could not be found in any package ($packages)")
+    }
+
+    def aClass(clazz: Class[_]): AClass = classifierForInstanceClass(clazz) match {
+      case Some(c: AClass) => c
+      case Some(_) => throw new IllegalArgumentException(s"$clazz: is not an AClass, but an ADataType")
+      case None => throw new IllegalArgumentException(s"$clazz: could not be found in any package ($packages)")
+    }
 
     def aClass[T <: AClass : ClassTag]: AClass = aClass(classTag[T].runtimeClass.asInstanceOf[Class[AClass]])
 
@@ -246,94 +267,105 @@ object APackage {
 // TODO: toString
 
 class AObjectImpl extends AObject {
-  lazy val _class: AClass = ActressPackage.AObjectClass
+  lazy val _class: AClass = AcorePackage.AObjectClass
   var _container: AObject = _
   var _actor: ActorRef = _
+
+  override def _get(feature: AFeature): Any = {
+    getClass.declaredMethods.find(_.name == feature._name).get.invoke(this)
+  }
 }
 
 abstract class AModelElementImpl extends AObjectImpl with AModelElement {
-  override lazy val _class: AClass = ActressPackage.AModelElementClass
+  override lazy val _class: AClass = AcorePackage.AModelElementClass
   var _name: String = _
 }
 
 class APackageImpl extends AModelElementImpl with APackage {
-  override lazy val _class: AClass = ActressPackage.APackageClass
+  APackage.registry.packages += this
+
+  override lazy val _class: AClass = AcorePackage.APackageClass
   val _classifiers: mutable.Buffer[AClassifier] = mutable.Buffer()
 }
 
 abstract class AClassifierImpl extends AModelElementImpl with AClassifier {
-  override lazy val _class: AClass = ActressPackage.AClassifierClass
+  override lazy val _class: AClass = AcorePackage.AClassifierClass
+  var _instanceClass: Class[_] = _
 }
 
-class ADataTypeImpl extends AClassifierImpl with ADataType {
-  override lazy val _class: AClass = ActressPackage.ADataTypeClass
+class ADataTypeImpl[T: ClassTag] extends AClassifierImpl with ADataType {
+  _instanceClass = classTag[T].runtimeClass
+
+  override lazy val _class: AClass = AcorePackage.ADataTypeClass
 }
 
-class AClassImpl extends AClassifierImpl with AClass {
-  override lazy val _class: AClass = ActressPackage.AClassClass
+class AClassImpl[T <: AObject : ClassTag] extends AClassifierImpl with AClass {
+  _instanceClass = classTag[T].runtimeClass
+
+  override lazy val _class: AClass = AcorePackage.AClassClass
   var _abstract: Boolean = false
   val _superTypes: mutable.Buffer[AClass] = mutable.Buffer()
   val _features: mutable.Buffer[AFeature] = mutable.Buffer()
 }
 
 abstract class AFeatureImpl extends AModelElementImpl with AFeature {
-  override lazy val _class: AClass = ActressPackage.AFeatureClass
+  override lazy val _class: AClass = AcorePackage.AFeatureClass
   var _mutable: Boolean = false
   var _many: Boolean = false
   var _derived: Boolean = false
 }
 
 class AAttributeImpl extends AFeatureImpl with AAttribute {
-  override lazy val _class: AClass = ActressPackage.AAttributeClass
+  override lazy val _class: AClass = AcorePackage.AAttributeClass
   var _type: ADataType = _
 }
 
 class AReferenceImpl extends AFeatureImpl with AReference {
-  override lazy val _class: AClass = ActressPackage.AReferenceClass
+  override lazy val _class: AClass = AcorePackage.AReferenceClass
   var _type: AClass = _
   var _containment: Boolean = false
 }
 
-object ActressPackage extends APackageImpl {
+object AcorePackage extends APackageImpl {
 
-  val AString = new ADataTypeImpl()
-  val ABoolean = new ADataTypeImpl()
+  val AStringDataType = new ADataTypeImpl[String]()
+  val ABooleanDataType = new ADataTypeImpl[Boolean]()
+  val AClassDataType = new ADataTypeImpl[Class[_]]()
 
-  val AObjectClass = new AClassImpl()
-  val AModelElementClass = new AClassImpl()
-  val APackageClass = new AClassImpl()
-  val AClassifierClass = new AClassImpl()
-  val AClassClass = new AClassImpl()
-  val ADataTypeClass = new AClassImpl()
-  val AFeatureClass = new AClassImpl()
-  val AAttributeClass = new AClassImpl()
-  val AReferenceClass = new AClassImpl()
+  // TODO: temporary
+  val AActorRefDataType = new ADataTypeImpl[ActorRef]()
 
-  private val content = Seq(
-    AString -> classOf[String],
-    ABoolean -> classOf[Boolean],
-
-    AObjectClass -> classOf[AObject],
-    AModelElementClass -> classOf[AModelElement],
-    APackageClass -> classOf[APackage],
-    AClassifierClass -> classOf[AClassifier],
-    ADataTypeClass -> classOf[ADataType],
-    AClassClass -> classOf[AClass],
-    AFeatureClass -> classOf[AFeature],
-    AAttributeClass -> classOf[AAttribute],
-    AReferenceClass -> classOf[AReference]
-  )
+  val AObjectClass = new AClassImpl[AObject]()
+  val AModelElementClass = new AClassImpl[AModelElement]()
+  val APackageClass = new AClassImpl[APackage]()
+  val AClassifierClass = new AClassImpl[AClassifier]()
+  val AClassClass = new AClassImpl[AClass]()
+  val ADataTypeClass = new AClassImpl[ADataType]()
+  val AFeatureClass = new AClassImpl[AFeature]()
+  val AAttributeClass = new AClassImpl[AAttribute]()
+  val AReferenceClass = new AClassImpl[AReference]()
+  val APackageRegistryClass = new AClassImpl[APackageRegistry]()
 
   _name = "acore"
-  _classifiers ++= content map (_._1)
+  _classifiers ++= Seq(
+    AStringDataType,
+    ABooleanDataType,
+    AClassDataType,
+    AActorRefDataType,
 
-  content foreach { c => APackage.initAClassifierFrom(c._1, c._2)}
+    AObjectClass,
+    AModelElementClass,
+    APackageClass,
+    AClassifierClass,
+    ADataTypeClass,
+    AClassClass,
+    AFeatureClass,
+    AAttributeClass,
+    AReferenceClass,
+    APackageRegistryClass
+  )
+
+  _classifiers foreach { c => APackage.initAClassifierFrom(c, c._instanceClass)}
 
   override def toString = s"APackageImpl(${_name},${_class},${_classifiers})"
-}
-
-trait APackageRegistry extends AClass {
-
-  def packages: collection.mutable.Seq[APackage]
-
 }

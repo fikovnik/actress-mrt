@@ -1,9 +1,9 @@
 package actress.core
 
 import akka.actor.ActorRef
-import fr.inria.spirals.actress.metamodel.{AClass, Containment}
+import fr.inria.spirals.actress.metamodel.{AObject, Containment}
 
-trait ModelEndpoint extends AClass {
+trait ModelEndpoint extends AObject {
 
   def name: String
 
@@ -11,7 +11,7 @@ trait ModelEndpoint extends AClass {
 
 }
 
-trait ModelsEndpoints extends AClass {
+trait ModelsEndpoints extends AObject {
 
   @Containment
   def endpoints: Set[ModelEndpoint]

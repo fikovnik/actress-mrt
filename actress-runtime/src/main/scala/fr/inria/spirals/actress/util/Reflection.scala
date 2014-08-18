@@ -1,8 +1,6 @@
 package fr.inria.spirals.actress.util
 
-import java.lang.reflect.Type
-import java.lang.reflect.Method
-import java.lang.reflect.ParameterizedType
+import java.lang.reflect.{WildcardType, Type, Method, ParameterizedType}
 import java.lang.annotation.Annotation
 import scala.reflect.ClassTag
 import scala.reflect.classTag
@@ -67,6 +65,7 @@ trait Reflection {
       def resolve(t: Type, acc: Seq[Class[_]]): Seq[Class[_]] = t match {
         case ParameterizedType(raw, Some(actual)) ⇒ resolve(actual, acc :+ raw)
         case ParameterizedType(raw, None) ⇒ acc :+ raw
+        case x: WildcardType => acc // wild cards are ignored for now
         case c: Class[_] ⇒ acc :+ c
       }
 

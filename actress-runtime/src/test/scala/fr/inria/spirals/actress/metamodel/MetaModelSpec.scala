@@ -4,6 +4,8 @@ import org.scalatest.{Matchers, WordSpec}
 
 class MetaModelSpec extends WordSpec with Matchers {
 
+  AcorePackage.AAttributeClass
+
   "APackage" should {
     "create AFeatures from a simple attributes" in {
       trait A extends AObject {

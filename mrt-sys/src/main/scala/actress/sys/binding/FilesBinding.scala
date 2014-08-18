@@ -3,10 +3,7 @@ package actress.sys.binding
 import java.nio.file.attribute.PosixFileAttributeView
 import java.nio.file.{FileSystems, Files => JFiles}
 
-import actress.sys.{Files, File}
-import fr.inria.spirals.actress.runtime.Binding
-
-class FileBinding(id: String) extends Binding {
+class FileBinding(id: String) {
 
   assert(id != null)
 
@@ -34,7 +31,7 @@ class FileBinding(id: String) extends Binding {
   }
 }
 
-class FilesBinding extends Binding {
+class FilesBinding {
 
   def files: String = "/"
 
