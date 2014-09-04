@@ -13,6 +13,7 @@ trait Reflection {
     def name: String = that.getName
     def simpleName: String = that.getSimpleName
     def declaredMethods: Seq[Method] = that.getDeclaredMethods
+    def allDeclaredMethods: Seq[Method] = (allSuperClasses.flatMap(_.declaredMethods) ++ declaredMethods).distinct
     def superClass: Class[_] = that.getSuperclass
     def interfaces: Seq[Class[_]] = that.getInterfaces
     def allSuperClasses: Seq[Class[_]] = {
