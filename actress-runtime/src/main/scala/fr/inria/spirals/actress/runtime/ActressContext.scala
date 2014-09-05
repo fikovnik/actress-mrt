@@ -2,10 +2,13 @@ package fr.inria.spirals.actress.runtime
 
 import akka.actor._
 import akka.agent.Agent
+import akka.util.Timeout
 import fr.inria.spirals.actress.metamodel._
 import fr.inria.spirals.actress.runtime.protocol._
 
 import scala.collection.mutable
+import scala.concurrent.Await
+import scala.concurrent.duration._
 
 /**
  *
@@ -40,6 +43,9 @@ class RegistryActor extends Actor with ActorLogging {
   deploy(APackageImpl.Registry)
   deploy(modelRegistry)
 
+  // TODO: should send a ready message to itself and then change the behavior
+  Await.result(runtimeModels.future(), 5.seconds)
+
   class AModelRegistryImpl extends AObjectImpl with AModelRegistry {
     override lazy val _class = AcorePackage.AModelRegistryClass
 
@@ -58,7 +64,7 @@ class RegistryActor extends Actor with ActorLogging {
     model._class._package._classes foreach { c =>
       runtimeModels send { r => r
         if (!r.contains(c)) {
-          val ref = context.actorOf(Props(new RuntimeModelActor(c, runtimeModels)), c._name)
+          val ref = context.child(c._name).getOrElse(context.actorOf(Props(classOf[RuntimeModelActor], c, runtimeModels), c._name))
           r + (c -> ref)
         } else r
       }
@@ -75,13 +81,15 @@ class RegistryActor extends Actor with ActorLogging {
   override def receive = {
 
     case msg@Get(elementPath, feature) =>
-
       if (elementPath.head != ElementPathSegment.Root) {
         sender ! UnresolvableElementPath(elementPath)
       } else {
         val originalSender = context.sender()
         val instance = modelRegistry
-        val ref = runtimeModels()(instance._class)
+        val ref = runtimeModels() get instance._class match {
+          case Some(e) => e
+          case None => sys.error(s"Unknown class: ${instance._class._name} in ${runtimeModels()}")
+        }
 
         log info s"Forwarding message: $msg to $ref"
 
@@ -90,7 +98,6 @@ class RegistryActor extends Actor with ActorLogging {
   }
 
 }
-
 
 // in the generated version, we would have an actor per AClass
 // in the reflective, the implementation is all the same
@@ -109,8 +116,8 @@ class RuntimeModelActor(model: AClass, runtimeModels: Agent[Map[AClass, ActorRef
               originalSender ! UnknownFeature(feature)
 
             case Some(f) => instance._get(f) match {
-              case rs: Iterable[AObject] =>
-                originalSender ! References(rs map { r => Reference(r._elementPath, r._actor.get)})
+              case rs: Iterable[_] =>
+                originalSender ! References(rs collect { case r: AObject => Reference(r._elementPath, r._actor.get)})
 
               case r: AObject =>
                 val z = r

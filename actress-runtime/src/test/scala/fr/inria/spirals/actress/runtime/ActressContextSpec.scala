@@ -9,7 +9,7 @@ class ActressContextSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
   def this() = this(ActorSystem("ActressServerSpec"))
 
-  override def afterAll {
+  override def afterAll() {
     TestKit.shutdownActorSystem(system)
   }
 
