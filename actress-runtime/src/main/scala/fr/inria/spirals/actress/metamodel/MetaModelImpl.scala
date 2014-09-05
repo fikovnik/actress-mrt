@@ -41,7 +41,7 @@ object APackageImpl {
 
     def aClass[T <: AClass : ClassTag]: AClass = aClass(classTag[T].runtimeClass.asInstanceOf[Class[AClass]])
 
-    override val _elementName = "packages"
+    override val _elementName = "registry"
   }
 
 }
@@ -54,22 +54,24 @@ abstract class AObjectImpl extends AObject {
   // TODO: this should be moved to some AObjectInternalImpl trait
   // TODO: it should be implemented similarly like _actor
   var _container: Option[AObject] = None
+  var _containmentFeature: Option[AReference] = None
 
   private var __actor: Option[ActorRef] = _
 
   def _actor: Option[ActorRef] = __actor
 
   // TODO: this should be moved to some AObjectInternalImpl trait
+  // TODO: a better implementation should be based on a reaction to the set event
   def _actor_=(v: Option[ActorRef]) {
     __actor = v
     _contents map (_.asInstanceOf[AObjectImpl]._actor = v)
   }
 
   override def _get(feature: AFeature): Any = getClass.allDeclaredMethods.find(_.name == feature._name) match {
-      case Some(method) => method.invoke(this)
-      case None => sys.error(s"${feature._name}: no such a method in ${this.getClass}")
-    }
+    case Some(method) => method.invoke(this)
+    case None => sys.error(s"${feature._name}: no such a method in ${this.getClass}")
   }
+}
 
 
 abstract class AModelElementImpl extends AObjectImpl with AModelElement {
@@ -310,9 +312,29 @@ object AcorePackage extends APackageImpl {
 
   _classifiers foreach { c => initAClassifierFrom(c, c._instanceClass)}
 
-  // TODO: fix the containment
-  _classifiers foreach (_.asInstanceOf[AObjectImpl]._container = Some(this))
-  _container = Some(APackageImpl.Registry)
+  // TODO: this should be done automatically
+  def fixContainment(aObj: AObject): Unit = {
+    val aObjImpl = aObj.asInstanceOf[AObjectImpl]
+
+    aObjImpl._contents foreach { child =>
+      val childImpl = child.asInstanceOf[AObjectImpl]
+      childImpl._container = Some(aObj)
+      // find in which feature the child is present
+      val clazz = aObjImpl._class
+
+      // TODO: r._type <:< child._class
+      val candidates = clazz._references filter { r => r._containment}
+      val feature = candidates find (aObjImpl._get(_) match {
+        case i: Iterable[_] => i exists (_ == child)
+        case i => i == child
+      })
+      childImpl._containmentFeature = feature
+      fixContainment(child)
+    }
+  }
+
+//  _container = Some(APackageImpl.Registry)
+  fixContainment(APackageImpl.Registry)
 
   override def toString = s"APackageImpl(${_name},${_class},${_classifiers})"
 }

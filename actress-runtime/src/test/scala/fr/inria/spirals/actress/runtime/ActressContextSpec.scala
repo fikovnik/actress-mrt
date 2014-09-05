@@ -2,8 +2,7 @@ package fr.inria.spirals.actress.runtime
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}
-import fr.inria.spirals.actress.metamodel.{APackage, AcorePackage}
-import fr.inria.spirals.actress.runtime.protocol.{Reference, ElementPath, AttributeValue, Get}
+import fr.inria.spirals.actress.runtime.protocol._
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
 class ActressContextSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with Matchers with BeforeAndAfterAll {
@@ -18,14 +17,23 @@ class ActressContextSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     "bootstrap server" in {
 
       val ctx = new ActressContext
-      ctx.endpoint ! Get(ElementPath.Root, "models")
 
-      val msg = expectMsgType[Reference]
+      ctx.endpoint ! Get(ElementPath.Root, "_class")
+      expectMsgType[Reference].elementPath.path should be ("//models/registry/packages/acore/_classifiers/AModelRegistry")
+
+      ctx.endpoint ! Get(ElementPath.Root, "models")
+      val msg = expectMsgType[References]
       println(msg)
 
-      msg.endpoint ! Get(msg.elementPath, "_class")
+      val model = msg.elementPaths.toSeq(0)
 
-      println(expectMsgType[Reference])
+      model.endpoint ! Get(model.elementPath, "_class")
+      val msg1 = expectMsgType[Reference]
+      println(msg1)
+
+      msg1.endpoint ! Get(msg1.elementPath, "_class")
+      val msg2 = expectMsgType[Reference]
+      println(msg2)
 
     }
   }

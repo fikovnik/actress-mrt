@@ -35,8 +35,10 @@ class RegistryActor extends Actor with ActorLogging {
 
   val runtimeModels = Agent(Map[AClass, ActorRef]())
 
+  val modelRegistry = new AModelRegistryImpl
+
   deploy(APackageImpl.Registry)
-  deploy(new AModelRegistryImpl)
+  deploy(modelRegistry)
 
   class AModelRegistryImpl extends AObjectImpl with AModelRegistry {
     override lazy val _class = AcorePackage.AModelRegistryClass
@@ -45,7 +47,7 @@ class RegistryActor extends Actor with ActorLogging {
 
     def models: Set[AObject] = registry.values.toSet
 
-    override def _elementName: String = "models"
+    override def _elementName: String = ""
   }
 
   def deploy(model: AObject): Unit = {
@@ -62,35 +64,28 @@ class RegistryActor extends Actor with ActorLogging {
       }
     }
 
-    registry += model._elementName -> model
+    // TODO: this must be automatic
+    if (model != modelRegistry) {
+      registry += model._elementName -> model
+      model.asInstanceOf[AObjectImpl]._container = Some(modelRegistry)
+      model.asInstanceOf[AObjectImpl]._containmentFeature = Some(modelRegistry._class._references.find(_._name == "models").get)
+    }
   }
 
   override def receive = {
 
     case msg@Get(elementPath, feature) =>
 
-      log info s"Received message: $msg"
+      if (elementPath.head != ElementPathSegment.Root) {
+        sender ! UnresolvableElementPath(elementPath)
+      } else {
+        val originalSender = context.sender()
+        val instance = modelRegistry
+        val ref = runtimeModels()(instance._class)
 
-      val originalSender = context.sender()
+        log info s"Forwarding message: $msg to $ref"
 
-      elementPath.segments match {
-        case Seq() =>
-          val instance = registry(feature)
-
-          originalSender ! Reference(instance._elementPath, instance._actor.get)
-
-        case Seq(x, _*) =>
-          val instance = registry(x)
-
-          // TODO: refactor
-
-          log info s"Accessing $instance (_class: ${instance._class})"
-
-          val ref = runtimeModels()(instance._class)
-
-          log info s"Target actor $ref"
-
-          ref ! FwdGet(originalSender, instance, elementPath.tail, feature)
+        ref ! FwdGet(instance, elementPath.tail, feature, originalSender)
       }
   }
 
@@ -103,35 +98,67 @@ class RegistryActor extends Actor with ActorLogging {
 class RuntimeModelActor(model: AClass, runtimeModels: Agent[Map[AClass, ActorRef]]) extends Actor with ActorLogging {
 
   override def receive = {
-    case msg@FwdGet(originalSender, instance, elementId, feature) =>
+    case msg@FwdGet(instance, elementPath, feature, originalSender) =>
       log info s"Received message: $msg"
 
-      model._allFeatures find (_._name == feature) match {
+      elementPath match {
         case None =>
-          originalSender ! UnknownAttribute(feature)
-
-        case Some(f) => instance._get(f) match {
-          case rs: Iterable[AObject] =>
-            originalSender ! References(rs map { r => Reference(r._elementPath, r._actor.get)})
-
-          case r: AObject => elementId match {
+          // resolve feature
+          model._allFeatures find (_._name == feature) match {
             case None =>
-              originalSender ! Reference(r._elementPath, r._actor.get)
+              originalSender ! UnknownFeature(feature)
 
-            case Some(childId) =>
-              log info s"Accessing $instance (_class: ${instance._class})"
+            case Some(f) => instance._get(f) match {
+              case rs: Iterable[AObject] =>
+                originalSender ! References(rs map { r => Reference(r._elementPath, r._actor.get)})
 
-              val ref = runtimeModels()(instance._class)
+              case r: AObject =>
+                val z = r
+                originalSender ! Reference(r._elementPath, r._actor.get)
 
-              log info s"Target actor $ref"
-
-              ref ! FwdGet(originalSender, instance, childId.tail, feature)
+              case r =>
+                originalSender ! AttributeValue(f._name, r)
+            }
           }
 
-          case r =>
-            originalSender ! AttributeValue(f._name, r)
-        }
+        case Some(path) =>
+          // resolve instance
+          val segment = path.head
+          // TODO: only references
+          model._allFeatures find (_._name == segment.feature) match {
+
+            case None =>
+              originalSender ! UnknownFeature(segment.feature)
+
+            case Some(f) =>
+              log info s"Accessing feature ${f._name} in $instance (_class: ${instance._class})"
+              instance._get(f) match {
+
+                case r: AObject =>
+                  val ref = runtimeModels()(r._class)
+                  ref ! FwdGet(r, path.tail, feature, originalSender)
+
+                case None =>
+
+                case rs: Iterable[_] => rs collectFirst {
+                  case x: AObject if x._elementName == segment.elementName => x
+                } match {
+
+                  case Some(r) =>
+                    val ref = runtimeModels()(r._class)
+                    ref ! FwdGet(r, path.tail, feature, originalSender)
+
+                  case None =>
+                    originalSender ! UnknownElement(segment.elementName)
+                }
+
+                case _ => sys.error(s"Expected a reference while calling $f on $instance")
+              }
+
+          }
+
       }
+
   }
 }
 

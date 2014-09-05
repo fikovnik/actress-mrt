@@ -1,7 +1,7 @@
 package fr.inria.spirals.actress.metamodel
 
 import akka.actor.ActorRef
-import fr.inria.spirals.actress.runtime.protocol.ElementPath
+import fr.inria.spirals.actress.runtime.protocol.{ElementPathSegment, ElementPath}
 
 import scala.collection.mutable
 
@@ -11,6 +11,7 @@ import scala.collection.mutable
 
 trait AObject {
 
+  // TODO: can this return a type union: AObject, Iterable[AObject], Attribute (whatever will that be)
   def _get(feature: AFeature): Any
 
   def _class: AClass
@@ -20,9 +21,14 @@ trait AObject {
 
   /** Uniquely identifies this instance within its actor. */
   @Derived
-  def _elementPath: ElementPath = _container map (_._elementPath.child(_elementName)) getOrElse ElementPath(_elementName)
+  def _elementPath: ElementPath = {
+    val elementSegment = ElementPathSegment(_containmentFeature map (_._name) getOrElse "", _elementName)
+    _container map (_._elementPath + elementSegment) getOrElse ElementPath(elementSegment)
+  }
 
   def _container: Option[AObject]
+
+  def _containmentFeature: Option[AReference]
 
   def _actor: Option[ActorRef]
 

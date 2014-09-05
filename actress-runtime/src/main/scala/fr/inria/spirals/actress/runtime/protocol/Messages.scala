@@ -3,30 +3,42 @@ package fr.inria.spirals.actress.runtime.protocol
 import akka.actor.ActorRef
 import fr.inria.spirals.actress.metamodel.AObject
 
-object ElementPath {
-  val Root = ElementPath(Seq())
-  val Separator = "/"
-
-  def apply(segments: Seq[String]) = new ElementPath(segments)
-  def apply(segment1: String, segments: String*) = new ElementPath(segment1 +: segments.toSeq)
+case class ElementPathSegment(feature: String, elementName: String) {
+  override def toString = feature + ElementPath.Separator + elementName
 }
 
-class ElementPath(val segments: Seq[String]) {
+object ElementPathSegment {
+  val Root: ElementPathSegment = ElementPathSegment("", "")
+}
 
-  def path: String = segments mkString (ElementPath.Separator, ElementPath.Separator, "")
+object ElementPath {
 
-  def head: Option[String] = segments.headOption
+  val Root = ElementPath(Seq(ElementPathSegment.Root))
+  val Separator = "/"
+
+  def apply(segment: ElementPathSegment): ElementPath = ElementPath(Seq(segment))
+
+}
+
+case class ElementPath(segments: Seq[ElementPathSegment]) {
+
+  assert(segments.size >= 1)
+
+  def +(that: ElementPathSegment): ElementPath = ElementPath(segments :+ that)
+
+  def path: String = segments mkString ElementPath.Separator
+
+  def head: ElementPathSegment = segments.head
 
   def tail: Option[ElementPath] = segments match {
-    case Seq() => None
     case Seq(x) => None
     case Seq(x, xs@_*) => Some(ElementPath(xs))
   }
 
-  def child(elementName: String): ElementPath = ElementPath(segments :+ elementName)
-
   override def toString = path
 }
+
+// TODO: Get with selector what to get back
 
 sealed trait Message
 
@@ -36,10 +48,14 @@ case class Get(elementPath: ElementPath, feature: String) extends Message
 
 case class AttributeValue(name: String, value: Any) extends GetReply
 
-case class UnknownAttribute(name: String) extends GetReply
+case class UnknownFeature(name: String) extends GetReply
+
+case class UnknownElement(name: String) extends GetReply
+
+case class UnresolvableElementPath(elementPath: ElementPath) extends GetReply
 
 case class Reference(elementPath: ElementPath, endpoint: ActorRef) extends GetReply
 
 case class References(elementPaths: Iterable[Reference]) extends GetReply
 
-case class FwdGet(originalSender: ActorRef, instance: AObject, elementPath: Option[ElementPath], feature: String)
+case class FwdGet(instance: AObject, elementPath: Option[ElementPath], feature: String, originalSender: ActorRef)
