@@ -1,12 +1,13 @@
 package fr.inria.spirals.actress.runtime
 
+import actress.core.{AcorePackage, CorePackage, ModelRegistry}
 import akka.actor._
 import akka.agent.Agent
-import akka.util.Timeout
 import fr.inria.spirals.actress.metamodel._
+import fr.inria.spirals.actress.metamodel.impl.AObjectImpl
+import fr.inria.spirals.actress.metamodel.util.AMutableSequence
 import fr.inria.spirals.actress.runtime.protocol._
 
-import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
@@ -24,58 +25,64 @@ class ActressContext {
   // TODO: extract name (as parameter)
   private val sys = ActorSystem("actress-server")
 
-  val endpoint = sys.actorOf(Props[RegistryActor], "endpoint")
+  val endpoint = sys.actorOf(Props[ActressEndpointActor], "endpoint")
 
 }
 
 
-class RegistryActor extends Actor with ActorLogging {
+class ActressEndpointActor extends Actor with ActorLogging {
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  // should be an agent
-  val registry = mutable.Map[String, AObject]()
-
+  // TODO: a question is if there should be a shared runtimeModel?
+  // perhaps each RuntimeModelActor can spawn its own children
   val runtimeModels = Agent(Map[AClass, ActorRef]())
 
-  val modelRegistry = new AModelRegistryImpl
+  // TODO: this single registry makes this actor to be bottle neck, it would be better if it is an agent that gets passed along
+  val modelRegistry = new ModelRegistryImpl
+  modelRegistry._endpoint = Some(self)
 
-  deploy(APackageImpl.Registry)
+  deploy(AcorePackage)
   deploy(modelRegistry)
 
   // TODO: should send a ready message to itself and then change the behavior
   Await.result(runtimeModels.future(), 5.seconds)
 
-  class AModelRegistryImpl extends AObjectImpl with AModelRegistry {
-    override lazy val _class = AcorePackage.AModelRegistryClass
-
-    _actor = Some(self)
-
-    def models: Set[AObject] = registry.values.toSet
+  // TODO: it should use the registry / deploy and undeploy
+  class ModelRegistryImpl extends AObjectImpl with ModelRegistry {
+    override lazy val _class = CorePackage.ModelRegistryClass
 
     override def _elementName: String = ""
+
+    override lazy val models: AMutableSequence[AObject] = AMutableSequence(this, CorePackage.ModelRegistryClass_models_Feature)
+    override lazy val metamodels: AMutableSequence[APackage] = AMutableSequence(this, CorePackage.ModelRegistryClass_metamodels_Feature)
   }
 
   def deploy(model: AObject): Unit = {
-    // sets the actor reference
-    model.asInstanceOf[AObjectImpl]._actor = Some(self)
+//    // sets the actor reference
+//    model.asInstanceOf[AObjectImpl]._endpoint = Some(self)
 
     // spawn actors for all classes in the package
-    model._class._package._classes foreach { c =>
-      runtimeModels send { r => r
-        if (!r.contains(c)) {
-          val ref = context.child(c._name).getOrElse(context.actorOf(Props(classOf[RuntimeModelActor], c, runtimeModels), c._name))
-          r + (c -> ref)
-        } else r
-      }
+    spawnRuntimeModelActors(model._class._package)
+
+    if (model != modelRegistry && model._class != AcorePackage.APackageClass) {
+      modelRegistry.models += model
     }
 
-    // TODO: this must be automatic
-    if (model != modelRegistry) {
-      registry += model._elementName -> model
-      model.asInstanceOf[AObjectImpl]._container = Some(modelRegistry)
-      model.asInstanceOf[AObjectImpl]._containmentFeature = Some(modelRegistry._class._references.find(_._name == "models").get)
+    modelRegistry.metamodels += model._class._package
+  }
+
+  def spawnRuntimeModelActors(pkg: APackage) {
+    runtimeModels send { orig =>
+      pkg._classes
+        .filter(!orig.contains(_))
+        .foldLeft(orig) { (m, e) => m + (e -> spawnRuntimeModelActor(e))}
     }
+  }
+
+  private def spawnRuntimeModelActor(e: AClass): ActorRef = {
+    val ref = context.child(e._name).getOrElse(context.actorOf(Props(classOf[RuntimeModelActor], e, runtimeModels), e._name))
+    ref
   }
 
   override def receive = {
@@ -87,8 +94,16 @@ class RegistryActor extends Actor with ActorLogging {
         val originalSender = context.sender()
         val instance = modelRegistry
         val ref = runtimeModels() get instance._class match {
-          case Some(e) => e
+          case Some(x) => x
           case None => sys.error(s"Unknown class: ${instance._class._name} in ${runtimeModels()}")
+//          case None =>
+//            val _ref = spawnRuntimeModelActor(instance._class)
+//
+//            runtimeModels send {
+//              _ + (instance._class -> _ref)
+//            }
+//
+//            _ref
         }
 
         log info s"Forwarding message: $msg to $ref"
@@ -117,11 +132,10 @@ class RuntimeModelActor(model: AClass, runtimeModels: Agent[Map[AClass, ActorRef
 
             case Some(f) => instance._get(f) match {
               case rs: Iterable[_] =>
-                originalSender ! References(rs collect { case r: AObject => Reference(r._elementPath, r._actor.get)})
+                originalSender ! References(rs collect { case r: AObject => Reference(r._elementPath, r._endpoint.get)})
 
               case r: AObject =>
-                val z = r
-                originalSender ! Reference(r._elementPath, r._actor.get)
+                originalSender ! Reference(r._elementPath, r._endpoint.get)
 
               case r =>
                 originalSender ! AttributeValue(f._name, r)

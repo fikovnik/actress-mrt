@@ -1,40 +1,23 @@
 package fr.inria.spirals.actress.metamodel
 
+import actress.core.AcorePackage
 import org.scalatest.{Matchers, WordSpec}
 
 class MetaModelSpec extends WordSpec with Matchers {
 
-//  AcorePackage.AAttributeClass
-//
-//  "APackage" should {
-//    "create AFeatures from a simple attributes" in {
-//      trait A extends AObject {
-//        def name: String
-//      }
-//
-//      val f = APackageImpl.featureFrom(classOf[A].getMethod("name"))
-//      f._derived should be(false)
-//      f._many should be(false)
-//      f._mutable should be(false)
-//      f._type._name should be("String")
-//      f._name should be("name")
-//    }
-//
-//    "create AFeatures from a simple mutable attributes" in {
-//      trait A extends AObject {
-//        def name: String
-//        def name_=(v: String)
-//      }
-//
-//      val f = APackageImpl.featureFrom(classOf[A].getMethod("name"))
-//      f._derived should be(false)
-//      f._many should be(false)
-//      f._mutable should be(true)
-//      f._type._name should be("String")
-//      f._name should be("name")
-//    }
-//
-//  }
+  "AcorePackage" should {
+    "initialize" in {
+
+      // initialize
+      AcorePackage.toString
+
+      AcorePackage._classes foreach { x =>
+        x._package should be(AcorePackage)
+        x._container should be(Some(AcorePackage))
+        x._containmentReference should be(Some(AcorePackage.APackageClass_classifiers_Feature))
+      }
+    }
+  }
 
 
 }

@@ -19,9 +19,9 @@ class ActressContextSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val ctx = new ActressContext
 
       ctx.endpoint ! Get(ElementPath.Root, "_class")
-      expectMsgType[Reference].elementPath.path should be ("//models/registry/packages/acore/_classifiers/AModelRegistry")
+      expectMsgType[Reference].elementPath.path should be ("//metamodels/core/_classifiers/ModelRegistry")
 
-      ctx.endpoint ! Get(ElementPath.Root, "models")
+      ctx.endpoint ! Get(ElementPath.Root, "metamodels")
       val msg = expectMsgType[References]
       println(msg)
 
