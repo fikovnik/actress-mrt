@@ -1,7 +1,7 @@
 package fr.inria.spirals.actress.runtime.protocol
 
 import akka.actor.ActorRef
-import fr.inria.spirals.actress.metamodel.AObject
+import fr.inria.spirals.actress.acore.AObject
 
 case class ElementPathSegment(feature: String, elementName: String) {
   override def toString = feature + ElementPath.Separator + elementName

@@ -1,11 +1,11 @@
 package fr.inria.spirals.actress.runtime
 
-import actress.core.{AcorePackage, CorePackage, ModelRegistry}
+import actress.core.{CorePackage, ModelRegistry}
 import akka.actor._
 import akka.agent.Agent
-import fr.inria.spirals.actress.metamodel._
-import fr.inria.spirals.actress.metamodel.impl.AObjectImpl
-import fr.inria.spirals.actress.metamodel.util.AMutableSequence
+import fr.inria.spirals.actress.acore._
+import fr.inria.spirals.actress.acore.impl.AObjectImpl
+import fr.inria.spirals.actress.acore.util.AMutableSequence
 import fr.inria.spirals.actress.runtime.protocol._
 
 import scala.concurrent.Await

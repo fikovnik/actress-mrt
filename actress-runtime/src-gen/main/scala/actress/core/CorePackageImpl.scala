@@ -1,6 +1,7 @@
 package actress.core
 
-import fr.inria.spirals.actress.metamodel.impl.{AClassImpl, APackageImpl, AReferenceImpl}
+import fr.inria.spirals.actress.acore.AcorePackage
+import fr.inria.spirals.actress.acore.impl.{AClassImpl, APackageImpl, AReferenceImpl}
 
 trait CorePackageImpl extends APackageImpl with CorePackage {
 

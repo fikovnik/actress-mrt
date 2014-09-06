@@ -1,6 +1,6 @@
 package actress.sys
 
-import fr.inria.spirals.actress.metamodel.AClass
+import fr.inria.spirals.actress.acore.AClass
 
 trait OSInfo extends AClass {
 
