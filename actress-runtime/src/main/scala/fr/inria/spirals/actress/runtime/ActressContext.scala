@@ -8,8 +8,7 @@ import fr.inria.spirals.actress.acore.impl.AObjectImpl
 import fr.inria.spirals.actress.acore.util.AMutableSequence
 import fr.inria.spirals.actress.runtime.protocol._
 
-import scala.concurrent.Await
-import scala.concurrent.duration._
+import scala.util.{Failure, Success}
 
 /**
  *
@@ -36,7 +35,7 @@ class ActressEndpointActor extends Actor with ActorLogging {
 
   // TODO: a question is if there should be a shared runtimeModel?
   // perhaps each RuntimeModelActor can spawn its own children
-  val runtimeModels = Agent(Map[AClass, ActorRef]())
+  val modelsMapAgent = Agent(Map[AClass, ActorRef]())
 
   // TODO: this single registry makes this actor to be bottle neck, it would be better if it is an agent that gets passed along
   val modelRegistry = new ModelRegistryImpl
@@ -44,9 +43,6 @@ class ActressEndpointActor extends Actor with ActorLogging {
 
   deploy(AcorePackage)
   deploy(modelRegistry)
-
-  // TODO: should send a ready message to itself and then change the behavior
-  Await.result(runtimeModels.future(), 5.seconds)
 
   // TODO: it should use the registry / deploy and undeploy
   class ModelRegistryImpl extends AObjectImpl with ModelRegistry {
@@ -73,7 +69,7 @@ class ActressEndpointActor extends Actor with ActorLogging {
   }
 
   def spawnRuntimeModelActors(pkg: APackage) {
-    runtimeModels send { orig =>
+    modelsMapAgent send { orig =>
       pkg._classes
         .filter(!orig.contains(_))
         .foldLeft(orig) { (m, e) => m + (e -> spawnRuntimeModelActor(e))}
@@ -81,7 +77,7 @@ class ActressEndpointActor extends Actor with ActorLogging {
   }
 
   private def spawnRuntimeModelActor(e: AClass): ActorRef = {
-    val ref = context.child(e._name).getOrElse(context.actorOf(Props(classOf[RuntimeModelActor], e, runtimeModels), e._name))
+    val ref = context.child(e._name).getOrElse(context.actorOf(Props(classOf[RuntimeModelActor], e, modelsMapAgent), e._name))
     ref
   }
 
@@ -93,25 +89,21 @@ class ActressEndpointActor extends Actor with ActorLogging {
       } else {
         val originalSender = context.sender()
         val instance = modelRegistry
-        val ref = runtimeModels() get instance._class match {
-          case Some(x) => x
-          case None => sys.error(s"Unknown class: ${instance._class._name} in ${runtimeModels()}")
-//          case None =>
-//            val _ref = spawnRuntimeModelActor(instance._class)
-//
-//            runtimeModels send {
-//              _ + (instance._class -> _ref)
-//            }
-//
-//            _ref
+        modelsMapAgent.future().onComplete {
+          case Failure(e) => sys.error("Unable to get a registry: "+e)
+          case Success(modelsMap) =>
+            val ref = modelsMap get instance._class match {
+              case Some(x) => x
+              case None => sys.error(s"Unknown class: ${instance._class._name} in ${modelsMapAgent()}")
+            }
+
+            log info s"Forwarding message: $msg to $ref"
+
+            ref ! FwdGet(instance, elementPath.tail, feature, originalSender)
         }
-
-        log info s"Forwarding message: $msg to $ref"
-
-        ref ! FwdGet(instance, elementPath.tail, feature, originalSender)
       }
   }
-
+  
 }
 
 // in the generated version, we would have an actor per AClass
