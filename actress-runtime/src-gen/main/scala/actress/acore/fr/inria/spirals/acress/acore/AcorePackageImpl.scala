@@ -7,9 +7,8 @@ import fr.inria.spirals.actress.runtime.protocol.ElementPath
 
 trait AcorePackageImpl extends APackageImpl with AcorePackage {
 
-  _name = "acore"
-
   override val AStringDataType = new ADataTypeImpl
+  override val ALongDataType = new ADataTypeImpl
   override val ABooleanDataType = new ADataTypeImpl
   override val AClassDataType = new ADataTypeImpl
   override val AElementPathDataType = new ADataTypeImpl
@@ -60,7 +59,10 @@ trait AcorePackageImpl extends APackageImpl with AcorePackage {
 
   private def initialize(): Unit = {
 
+    _name = "acore"
+
     initializeAStringDataType()
+    initializeALongDataType()
     initializeABooleanDataType()
     initializeAClassDataType()
     initializeAElementPathDataType()
@@ -96,6 +98,11 @@ trait AcorePackageImpl extends APackageImpl with AcorePackage {
   private def initializeAStringDataType(): Unit = {
     AStringDataType._name = "String"
     AStringDataType._instanceClass = classOf[String]
+  }
+
+  private def initializeALongDataType(): Unit = {
+    AStringDataType._name = "Long"
+    AStringDataType._instanceClass = classOf[Long]
   }
 
   private def initializeABooleanDataType(): Unit = {

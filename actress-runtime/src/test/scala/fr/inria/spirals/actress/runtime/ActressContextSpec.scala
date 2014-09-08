@@ -18,22 +18,50 @@ class ActressContextSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
       val ctx = new ActressContext
 
-      ctx.endpoint ! Get(ElementPath.Root, "_class")
-      expectMsgType[Reference].elementPath.path should be ("//metamodels/core/_classifiers/ModelRegistry")
+      println(testActor)
+      ctx.endpoint tell(Get(ElementPath.Root, "_class"), testActor)
+      expectMsgType[Reference].elementPath.path should be("//metamodels/core/_classifiers/ModelRegistry")
 
       ctx.endpoint ! Get(ElementPath.Root, "metamodels")
-      val msg = expectMsgType[References]
-      println(msg)
+      val refs = expectMsgType[References]
+      refs.references.map(_.elementPath.path) should contain allOf(
+        "//metamodels/core",
+        "//metamodels/acore",
+        "//metamodels/fs")
 
-      val model = msg.elementPaths.toSeq(0)
+      val metamodel = refs.references.find(_.elementPath.path.endsWith("acore")).get
 
-      model.endpoint ! Get(model.elementPath, "_class")
-      val msg1 = expectMsgType[Reference]
-      println(msg1)
+      metamodel.endpoint ! Get(metamodel.elementPath, "_class")
+      val pkg = expectMsgType[Reference]
+      pkg.elementPath.path should be("//metamodels/acore/_classifiers/APackage")
 
-      msg1.endpoint ! Get(msg1.elementPath, "_class")
-      val msg2 = expectMsgType[Reference]
-      println(msg2)
+      pkg.endpoint ! Get(pkg.elementPath, "_class")
+      val cls = expectMsgType[Reference]
+      cls.elementPath.path should be("//metamodels/acore/_classifiers/AClass")
+
+    }
+    "work with files" in {
+
+      val ctx = new ActressContext
+
+//      ctx.endpoint ! Get(ElementPath.Root, "models")
+//      val msg = expectMsgType[References]
+//      println(msg)
+
+      ctx.endpoint ! Get(ElementPath.Root + ElementPathSegment("models","fs"), "name")
+      println(expectMsgType[Any])
+      ctx.endpoint ! Get(ElementPath.Root + ElementPathSegment("models","fs"), "creationTime")
+      println(expectMsgType[Any])
+      ctx.endpoint ! Get(ElementPath.Root + ElementPathSegment("models","fs"), "files")
+      val files = expectMsgType[References]
+      println(files)
+      val file = files.references.toSeq(0)
+      file.endpoint ! Get(file.elementPath, "name")
+      println(expectMsgType[AttributeValue])
+      //      resp.elementPath.path should be ("//models")
+      //
+      //      resp.endpoint ! Get(resp.elementPath, "")
+
 
     }
   }

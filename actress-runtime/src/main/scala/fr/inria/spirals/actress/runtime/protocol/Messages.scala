@@ -56,6 +56,6 @@ case class UnresolvableElementPath(elementPath: ElementPath) extends GetReply
 
 case class Reference(elementPath: ElementPath, endpoint: ActorRef) extends GetReply
 
-case class References(elementPaths: Iterable[Reference]) extends GetReply
+case class References(references: Iterable[Reference]) extends GetReply
 
 case class FwdGet(instance: AObject, elementPath: Option[ElementPath], feature: String, originalSender: ActorRef)

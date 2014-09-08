@@ -5,15 +5,14 @@ import fr.inria.spirals.actress.acore.impl.{AClassImpl, APackageImpl, AReference
 
 trait CorePackageImpl extends APackageImpl with CorePackage {
 
-  _name = "core"
-
   override val ModelRegistryClass = new AClassImpl
   override val ModelRegistryClass_models_Feature = new AReferenceImpl
   override val ModelRegistryClass_metamodels_Feature = new AReferenceImpl
 
   initialize()
 
-  def initialize(): Unit = {
+  private def initialize(): Unit = {
+    _name = "core"
 
     initializeModelRegistryClass()
 

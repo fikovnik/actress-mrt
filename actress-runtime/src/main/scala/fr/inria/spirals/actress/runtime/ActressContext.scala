@@ -1,6 +1,7 @@
 package fr.inria.spirals.actress.runtime
 
 import actress.core.{CorePackage, ModelRegistry}
+import actress.sys.impl.DirectoryImpl
 import akka.actor._
 import akka.agent.Agent
 import fr.inria.spirals.actress.acore._
@@ -43,6 +44,10 @@ class ActressEndpointActor extends Actor with ActorLogging {
 
   deploy(AcorePackage)
   deploy(modelRegistry)
+  // TODO: temporary
+  deploy(new DirectoryImpl(new java.io.File("/tmp")) {
+    override def _elementName: String = "fs"
+  })
 
   // TODO: it should use the registry / deploy and undeploy
   class ModelRegistryImpl extends AObjectImpl with ModelRegistry {
@@ -55,16 +60,17 @@ class ActressEndpointActor extends Actor with ActorLogging {
   }
 
   def deploy(model: AObject): Unit = {
-//    // sets the actor reference
-//    model.asInstanceOf[AObjectImpl]._endpoint = Some(self)
+    log info s"Deploying model $model (AClass: ${model._class}})"
 
     // spawn actors for all classes in the package
     spawnRuntimeModelActors(model._class._package)
 
     if (model != modelRegistry && model._class != AcorePackage.APackageClass) {
+      log info s"Adding model $model to model registry"
       modelRegistry.models += model
     }
 
+    log info s"Adding metamodel ${model._class._package} to metamodel registry"
     modelRegistry.metamodels += model._class._package
   }
 
@@ -78,6 +84,7 @@ class ActressEndpointActor extends Actor with ActorLogging {
 
   private def spawnRuntimeModelActor(e: AClass): ActorRef = {
     val ref = context.child(e._name).getOrElse(context.actorOf(Props(classOf[RuntimeModelActor], e, modelsMapAgent), e._name))
+    log info s"Spawning an actor $ref for model class: $e"
     ref
   }
 
@@ -88,10 +95,10 @@ class ActressEndpointActor extends Actor with ActorLogging {
         sender ! UnresolvableElementPath(elementPath)
       } else {
         val originalSender = context.sender()
-        val instance = modelRegistry
         modelsMapAgent.future().onComplete {
-          case Failure(e) => sys.error("Unable to get a registry: "+e)
+          case Failure(e) => sys.error("Unable to get a registry: " + e)
           case Success(modelsMap) =>
+            val instance = modelRegistry
             val ref = modelsMap get instance._class match {
               case Some(x) => x
               case None => sys.error(s"Unknown class: ${instance._class._name} in ${modelsMapAgent()}")
@@ -103,7 +110,7 @@ class ActressEndpointActor extends Actor with ActorLogging {
         }
       }
   }
-  
+
 }
 
 // in the generated version, we would have an actor per AClass
@@ -145,6 +152,9 @@ class RuntimeModelActor(model: AClass, runtimeModels: Agent[Map[AClass, ActorRef
 
             case Some(f) =>
               log info s"Accessing feature ${f._name} in $instance (_class: ${instance._class})"
+
+              // TODO: optimization - the list can provide a dictionaty like lookup
+
               instance._get(f) match {
 
                 case r: AObject =>

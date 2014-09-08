@@ -7,8 +7,6 @@ import fr.inria.spirals.actress.util.Reflection._
 
 abstract class AObjectImpl extends AObject {
 
-  override lazy val _class: AClass = AcorePackage.AObjectClass
-
   /** Uniquely identifies this instance within its actor. */
   override def _elementPath: ElementPath = {
     val elementSegment = ElementPathSegment(_containmentReference map (_._name) getOrElse "", _elementName)
@@ -16,7 +14,7 @@ abstract class AObjectImpl extends AObject {
   }
 
   override def _contents: AMutableSequence[AObject] = {
-      val refs = _class._allFeatures collect { case x: AReference if x._containment => x}
+      val refs = _class._allFeatures collect { case x: AReference if x._containment && !x._derived => x}
 
       // it is a reference so we can safely assume that we can cast the result
       refs.collect {

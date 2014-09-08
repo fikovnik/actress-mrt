@@ -7,6 +7,7 @@ object AcorePackage extends AcorePackageImpl
 trait AcorePackage extends APackage {
 
   val AStringDataType: ADataType
+  val ALongDataType: ADataType
   val ABooleanDataType: ADataType
   val AClassDataType: ADataType
   val AElementPathDataType: ADataType
