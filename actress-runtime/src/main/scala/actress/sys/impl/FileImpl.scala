@@ -1,50 +1,81 @@
 package actress.sys.impl
 
-import java.io.{File => JFile}
 import java.nio.file.attribute.{FileTime, PosixFileAttributeView}
-import java.nio.file.{Files => JFiles}
+import java.nio.file.{StandardCopyOption, Files => JFiles, Path => JPath}
 
-import actress.sys.{FSPackage, Directory, File, RegularFile}
-import fr.inria.spirals.actress.acore.AMutableSequence
+import actress.sys.{Directory, FSPackage, File, RegularFile}
+import fr.inria.spirals.actress.acore.AMutableSet
 import fr.inria.spirals.actress.acore.impl.AObjectImpl
+import fr.inria.spirals.actress.acore.util.{ContainmentPair, ContainmentSettingIterable, ARuntimeMutableSet}
 
-abstract class FileImpl(jFile: JFile) extends AObjectImpl with File {
+import scala.collection.JavaConversions._
+
+abstract class FileImpl(val path: JPath) extends AObjectImpl with File {
 
   override lazy val _class = FSPackage.FileClass
 
-  private val posixFile = JFiles.getFileAttributeView(jFile.toPath, classOf[PosixFileAttributeView])
+  override def _elementName: String = name
 
-  override def name: String = jFile.getName
+  private val posixFile = JFiles.getFileAttributeView(path, classOf[PosixFileAttributeView])
 
-  override def name_=(v: String): Unit = jFile.renameTo(new JFile(jFile.getParentFile, v))
+  override def name: String = path.getFileName.toString
+
+  override def name_=(v: String): Unit = {
+    val dest = path.resolveSibling(v)
+    assert(JFiles.notExists(dest))
+    JFiles.move(path, dest)
+  }
 
   override def creationTime_=(v: Long): Unit = posixFile.setTimes(null, null, FileTime.fromMillis(v))
 
   override def creationTime: Long = posixFile.readAttributes().creationTime().toMillis
 
-  override def _elementName: String = name
-
 }
 
-class RegularFileImpl(jFile: JFile) extends FileImpl(jFile) with RegularFile {
+class RegularFileImpl(path: JPath) extends FileImpl(path) with RegularFile {
   override lazy val _class = FSPackage.RegularFileClass
 }
 
-class DirectoryImpl(jFile: JFile) extends FileImpl(jFile) with Directory {
+class DirectoryImpl(path: JPath) extends FileImpl(path) with Directory {
   override lazy val _class = FSPackage.DirectoryClass
 
-  assert(jFile.isDirectory)
+  assert(JFiles.isDirectory(path))
 
-  override def files: AMutableSequence[File] = {
-    val files = jFile.listFiles map { jf =>
-      val aObj = if (jf.isDirectory) new DirectoryImpl(jf) else new RegularFileImpl(jf)
+  override lazy val files: AMutableSet[File] = new ARuntimeMutableSet[File] with ContainmentSettingIterable[File] {
+    //        aObj.__containmentPair = Some((this, FSPackage.DirectoryClass_files_Feature))
+    //        aObj._endpoint = this._endpoint
 
-      // TODO: there should be some basic support for the following bookkeeping, extracted from the ACollectionContainment
-
-      aObj.__container = Some((this, FSPackage.DirectoryClass_files_Feature))
-      aObj._endpoint = this._endpoint
-      aObj
+    override protected def _iterable: Iterable[File] = {
+      JFiles.newDirectoryStream(path) map { x =>
+        if (JFiles.isDirectory(x)) new DirectoryImpl(x) else new RegularFileImpl(x)
+      }
     }
-    files.toBuffer
+
+    override protected def _add(elem: File): Unit = {
+
+      val dest = path.resolve(elem.name)
+      if (JFiles.exists(dest)) throw new Exception(s"Destination $dest already exists")
+
+      // FIXME: just a quick hack
+      val orig = elem.asInstanceOf[FileImpl]
+
+      if (JFiles.exists(orig.path))
+        JFiles.move(orig.path, dest, StandardCopyOption.ATOMIC_MOVE)
+      else
+        elem match {
+          // TODO: copy attributes
+          case d: Directory =>
+            JFiles.createDirectory(dest)
+          case f: RegularFile =>
+            JFiles.createFile(dest)
+          // TODO: copy stuff
+        }
+    }
+
+    override protected def _del(elem: File): Unit = {
+
+    }
+
+    override val containmentPair: ContainmentPair = ContainmentPair(DirectoryImpl.this, FSPackage.DirectoryClass_files_Feature)
   }
 }

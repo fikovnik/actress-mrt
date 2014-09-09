@@ -1,7 +1,7 @@
 package fr.inria.spirals.actress.acore
 
 import akka.actor.ActorRef
-import fr.inria.spirals.actress.runtime.protocol.{ElementPathSegment, ElementPath}
+import fr.inria.spirals.actress.runtime.protocol.ElementPath
 
 trait AObject {
 

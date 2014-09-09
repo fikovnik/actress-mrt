@@ -34,7 +34,7 @@ trait Directory extends File {
 
   @Containment
   @Derived
-  def files: AMutableSequence[File]
+  def files: AMutableSet[File]
 
 }
 

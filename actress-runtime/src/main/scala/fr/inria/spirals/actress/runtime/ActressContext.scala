@@ -1,12 +1,14 @@
 package fr.inria.spirals.actress.runtime
 
+import java.nio.file.Paths
+
 import actress.core.{CorePackage, ModelRegistry}
 import actress.sys.impl.DirectoryImpl
 import akka.actor._
 import akka.agent.Agent
 import fr.inria.spirals.actress.acore._
 import fr.inria.spirals.actress.acore.impl.AObjectImpl
-import fr.inria.spirals.actress.acore.util.AMutableSequence
+import fr.inria.spirals.actress.acore.util.AMutableSet
 import fr.inria.spirals.actress.runtime.protocol._
 
 import scala.util.{Failure, Success}
@@ -40,12 +42,11 @@ class ActressEndpointActor extends Actor with ActorLogging {
 
   // TODO: this single registry makes this actor to be bottle neck, it would be better if it is an agent that gets passed along
   val modelRegistry = new ModelRegistryImpl
-  modelRegistry._endpoint = Some(self)
 
   deploy(AcorePackage)
   deploy(modelRegistry)
   // TODO: temporary
-  deploy(new DirectoryImpl(new java.io.File("/tmp")) {
+  deploy(new DirectoryImpl(Paths.get("/tmp")) {
     override def _elementName: String = "fs"
   })
 
@@ -55,8 +56,10 @@ class ActressEndpointActor extends Actor with ActorLogging {
 
     override def _elementName: String = ""
 
-    override lazy val models: AMutableSequence[AObject] = AMutableSequence(this, CorePackage.ModelRegistryClass_models_Feature)
-    override lazy val metamodels: AMutableSequence[APackage] = AMutableSequence(this, CorePackage.ModelRegistryClass_metamodels_Feature)
+    override def _endpoint: Option[ActorRef] = Some(self)
+
+    override lazy val models: AMutableSet[AObject] = AMutableSet(this, CorePackage.ModelRegistryClass_models_Feature)
+    override lazy val metamodels: AMutableSet[APackage] = AMutableSet(this, CorePackage.ModelRegistryClass_metamodels_Feature)
   }
 
   def deploy(model: AObject): Unit = {

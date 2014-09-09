@@ -72,6 +72,7 @@ trait FSPackageImpl extends APackageImpl with FSPackage {
         x._many = true
         x._containment = true
         x._derived = true
+        x._unique = true
       }
     )
   }

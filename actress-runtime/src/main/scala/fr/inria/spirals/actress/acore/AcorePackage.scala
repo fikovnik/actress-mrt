@@ -50,6 +50,8 @@ trait AcorePackage extends APackage {
   val AFeatureClass_many_Feature: AAttribute
   val AFeatureClass_derived_Feature: AAttribute
   val AFeatureClass_optional_Feature: AAttribute
+  val AFeatureClass_ordered_Feature: AAttribute
+  val AFeatureClass_unique_Feature: AAttribute
 
   val AReferenceClass_containment_Feature: AAttribute
   val AReferenceClass_opposite_Feature: AReference

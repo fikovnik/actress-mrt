@@ -32,12 +32,14 @@ trait CorePackageImpl extends APackageImpl with CorePackage {
         x._type = AcorePackage.AObjectClass
         x._many = true
         x._containment = true
+        x._unique = true
       },
       ModelRegistryClass_metamodels_Feature init { x =>
         x._name = "metamodels"
         x._type = AcorePackage.APackageClass
         x._many = true
         x._containment = true
+        x._unique = true
       }
     )
   }

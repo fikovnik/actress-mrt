@@ -9,4 +9,6 @@ abstract class AFeatureImpl extends AModelElementImpl with AFeature {
   var _many: Boolean = false
   var _derived: Boolean = false
   var _optional: Boolean = false
+  var _ordered: Boolean = false
+  var _unique: Boolean = false
 }

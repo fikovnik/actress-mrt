@@ -12,4 +12,8 @@ trait AFeature extends AModelElement {
 
   def _optional: Boolean
 
+  def _ordered: Boolean
+
+  def _unique: Boolean
+
 }

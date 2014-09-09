@@ -51,6 +51,8 @@ trait AcorePackageImpl extends APackageImpl with AcorePackage {
   override val AFeatureClass_many_Feature = new AAttributeImpl
   override val AFeatureClass_derived_Feature = new AAttributeImpl
   override val AFeatureClass_optional_Feature = new AAttributeImpl
+  override val AFeatureClass_ordered_Feature = new AAttributeImpl
+  override val AFeatureClass_unique_Feature = new AAttributeImpl
 
   override val AReferenceClass_containment_Feature = new AAttributeImpl
   override val AReferenceClass_opposite_Feature = new AReferenceImpl
@@ -139,18 +141,21 @@ trait AcorePackageImpl extends APackageImpl with AcorePackage {
         x._containment = true
         x._many = true
         x._opposite = Some(AClassifierClass_package_Feature)
+        x._ordered = true
       },
       APackageClass_classes_Feature init { x =>
         x._name = "_classes"
         x._type = AClassClass
         x._many = true
         x._derived = true
+        x._ordered = true
       },
       APackageClass_datatypes_Feature init { x =>
         x._name = "_dataTypes"
         x._type = ADataTypeClass
         x._many = true
         x._derived = true
+        x._ordered = true
       })
   }
 
@@ -247,24 +252,28 @@ trait AcorePackageImpl extends APackageImpl with AcorePackage {
         x._name = "_superTypes"
         x._type = AClassClass
         x._many = true
+        x._ordered = true
       },
       AClassClass_features_Feature init { x =>
         x._name = "_features"
         x._type = AFeatureClass
         x._many = true
         x._containment = true
+        x._ordered = true
       },
       AClassClass_allFeatures_Feature init { x =>
         x._name = "_allFeatures"
         x._type = AFeatureClass
         x._many = true
         x._derived = true
+        x._ordered = true
       },
       AClassClass_references_Feature init { x =>
         x._name = "_references"
         x._type = AReferenceClass
         x._many = true
         x._derived = true
+        x._ordered = true
       })
 
   }
@@ -301,8 +310,17 @@ trait AcorePackageImpl extends APackageImpl with AcorePackage {
       AFeatureClass_optional_Feature init { x =>
         x._name = "_optional"
         x._type = ABooleanDataType
+      },
+      AFeatureClass_ordered_Feature init { x =>
+        x._name = "_oredered"
+        x._type = ABooleanDataType
+      },
+      AFeatureClass_unique_Feature init { x =>
+        x._name = "_unique"
+        x._type = ABooleanDataType
       }
     )
+
   }
 
   private def initializeAAttributeClass(): Unit = {

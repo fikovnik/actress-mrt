@@ -2,8 +2,6 @@ package fr.inria.spirals.actress.acore
 
 trait APackage extends AModelElement {
 
-  // TODO: this should be a bi-directional reference, currently not supported
-  // @Containment(opposite="_package")
   @Containment
   def _classifiers: AMutableSequence[AClassifier]
 

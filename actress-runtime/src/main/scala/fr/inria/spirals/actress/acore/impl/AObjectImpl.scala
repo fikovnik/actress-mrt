@@ -2,6 +2,7 @@ package fr.inria.spirals.actress.acore.impl
 
 import akka.actor.ActorRef
 import fr.inria.spirals.actress.acore._
+import fr.inria.spirals.actress.acore.util.ContainmentPair
 import fr.inria.spirals.actress.runtime.protocol.{ElementPath, ElementPathSegment}
 import fr.inria.spirals.actress.util.Reflection._
 
@@ -23,16 +24,10 @@ abstract class AObjectImpl extends AObject {
       }.flatten
   }
 
-  var __container: Option[(AObject, AReference)] = None
-  override def _container: Option[AObject] = __container map (_._1)
-  override def _containmentReference: Option[AReference] = __container map (_._2)
-
-  private var __endpoint: Option[ActorRef] = _
-  override def _endpoint: Option[ActorRef] = __endpoint
-  def _endpoint_=(v: Option[ActorRef]) {
-    __endpoint = v
-    _contents map (_.asInstanceOf[AObjectImpl]._endpoint = v)
-  }
+  var __containmentPair: Option[ContainmentPair] = None
+  override def _container: Option[AObject] = __containmentPair map (_.container)
+  override def _containmentReference: Option[AReference] = __containmentPair map (_.reference)
+  override def _endpoint: Option[ActorRef] = _container flatMap (_._endpoint)
 
   override def _get(feature: AFeature): Any = getClass.allDeclaredMethods.find(_.name == feature._name) match {
     case Some(method) => method.invoke(this)

@@ -4,8 +4,15 @@ import scala.collection.mutable
 
 package object acore {
 
-  type ASequence[A] = Seq[A]
+  /** ordered = false, unique = true */
+  type AMutableSet[A] = mutable.Set[A]
+  /** ordered = true, unique = false */
   type AMutableSequence[A] = mutable.Buffer[A]
+
+  /** ordered = false, unique = false */
+//  type AMutableBag[A] =
+  /** ordered = true, unique = true */
+//  type AOrderedSet[A] =
 
   implicit class ACollectionLookup[A <: AObject](that: Iterable[A]) {
     def apply(elementName: String): Option[A] = that find (_._elementName == elementName)

@@ -16,9 +16,9 @@ trait CorePackage extends APackage {
 trait ModelRegistry extends AObject {
 
   @Containment
-  def models: AMutableSequence[AObject]
+  def models: AMutableSet[AObject]
 
   @Containment
-  def metamodels: AMutableSequence[APackage]
+  def metamodels: AMutableSet[APackage]
 
 }
